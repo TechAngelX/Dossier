@@ -119,24 +119,26 @@
                     <StackPanel Spacing="15">
                         <TextBlock Text="Processing Options:" FontWeight="SemiBold"/>
                         <WrapPanel Orientation="Horizontal">
-                            <CheckBox x:Name="ProcessAcceptsCheckBox" 
-                                      Content="Process Accepts" 
-                                      IsChecked="True"
-                                      Margin="0,0,20,0"/>
-                            <CheckBox x:Name="ProcessRejectsCheckBox" 
+                            <RadioButton x:Name="ProcessRejectsCheckBox" 
                                       Content="Process Rejects" 
-                                      IsChecked="False"/>
+                                      IsChecked="True"
+                                      Margin="0,0,20,0"
+                                      GroupName="ProcessingMode"/>
+                            <RadioButton x:Name="ProcessAcceptsCheckBox" 
+                                      Content="Process Accepts" 
+                                      IsChecked="False"
+                                      GroupName="ProcessingMode"/>
                         </WrapPanel>
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <Button x:Name="StartButton"
-                                    Content="🚀 Start Processing"
+                                    Content="Start Processing"
                                     Padding="20,12"
                                     Background="#007BFF"
                                     Foreground="White"
                                     CornerRadius="4"
                                     FontWeight="SemiBold"/>
                             <Button x:Name="StopButton"
-                                    Content="⏹ Stop"
+                                    Content="Stop"
                                     Padding="20,12"
                                     Background="#DC3545"
                                     Foreground="White"

@@ -54,8 +54,8 @@ public partial class MainWindow : Window
         _studentGrid = this.FindControl<DataGrid>("StudentGrid")!;
         _studentCountText = this.FindControl<TextBlock>("StudentCountText")!;
         _actionPanel = this.FindControl<Border>("ActionPanel")!;
-        _processAcceptsCheckBox = this.FindControl<CheckBox>("ProcessAcceptsCheckBox")!;
-        _processRejectsCheckBox = this.FindControl<CheckBox>("ProcessRejectsCheckBox")!;
+        _processAcceptsCheckBox = this.FindControl<RadioButton>("ProcessAcceptsCheckBox")!;
+        _processRejectsCheckBox = this.FindControl<RadioButton>("ProcessRejectsCheckBox")!;
         _startButton = this.FindControl<Button>("StartButton")!;
         _stopButton = this.FindControl<Button>("StopButton")!;
         _statusLog = this.FindControl<TextBox>("StatusLog")!;
@@ -75,8 +75,8 @@ public partial class MainWindow : Window
     private DataGrid _studentGrid = null!;
     private TextBlock _studentCountText = null!;
     private Border _actionPanel = null!;
-    private CheckBox _processAcceptsCheckBox = null!;
-    private CheckBox _processRejectsCheckBox = null!;
+    private RadioButton _processAcceptsCheckBox = null!;
+    private RadioButton _processRejectsCheckBox = null!;
     private Button _startButton = null!;
     private Button _stopButton = null!;
     private TextBox _statusLog = null!;

@@ -169,7 +169,9 @@ Your spreadsheet should have columns including:
 
 ## Configuration
 
-Click the Settings button to configure:
+Click the ⚙️ Settings button to configure:
+
+
 
 | Setting | Description | Default |
 |---------|-------------|---------|
