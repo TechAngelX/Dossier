@@ -39,7 +39,6 @@ public class ExcelService : IExcelService
         int headerRow = 1;
         int colCount = worksheet.Dimension?.Columns ?? 0;
         
-        // Log all column headers for debugging
         Console.WriteLine("=== Excel Column Headers ===");
         for (int col = 1; col <= colCount; col++)
         {
@@ -47,38 +46,31 @@ public class ExcelService : IExcelService
             Console.WriteLine($"  Column {col}: '{header}'");
         }
         
-        // --- 1. First Pass: Strict Matches ---
         for (int col = 1; col <= colCount; col++)
         {
             string header = worksheet.Cells[headerRow, col].Value?.ToString()?.Trim().ToLowerInvariant() ?? "";
             
             if (string.IsNullOrEmpty(header)) continue;
 
-            // Student No
             if (studentNoCol == -1 && (header == "studentno" || header == "student_no" || header == "student number" || header == "student id" || header == "id"))
                 studentNoCol = col;
             
-            // Decision
             if (decisionCol == -1 && (header == "decision" || header == "status" || header == "offer"))
                 decisionCol = col;
             
-            // Name (Single column)
             if (nameCol == -1 && (header == "name" || header == "applicant name" || header == "student name"))
                 nameCol = col;
                 
-            // Split Names (Forename / Surname)
             if (forenameCol == -1 && (header == "forename" || header == "firstname" || header == "first name"))
                 forenameCol = col;
             
             if (surnameCol == -1 && (header == "surname" || header == "lastname" || header == "last name"))
                 surnameCol = col;
 
-            // Programme - Strict match for "programme"
             if (programmeCol == -1 && header == "programme")
                 programmeCol = col;
         }
 
-        // --- 2. Second Pass: Loose Matches (if strict failed) ---
         for (int col = 1; col <= colCount; col++)
         {
             string header = worksheet.Cells[headerRow, col].Value?.ToString()?.Trim().ToLowerInvariant() ?? "";
@@ -87,11 +79,9 @@ public class ExcelService : IExcelService
             if (studentNoCol == -1 && header.Contains("student") && header.Contains("no")) studentNoCol = col;
             if (decisionCol == -1 && header.Contains("decision")) decisionCol = col;
             
-            // Loose programme match
             if (programmeCol == -1 && (header == "prog" || header == "progcode" || header == "prog code" || header == "progshort" || header == "route"))
                 programmeCol = col;
             
-            // Loose split name match
             if (forenameCol == -1 && header.Contains("forename")) forenameCol = col;
             if (surnameCol == -1 && header.Contains("surname")) surnameCol = col;
         }
@@ -100,7 +90,6 @@ public class ExcelService : IExcelService
         Console.WriteLine($"  StudentNo column: {studentNoCol}");
         Console.WriteLine($"  Decision column: {decisionCol}");
         
-        // Only log the columns we actually found
         if (nameCol > 0) Console.WriteLine($"  Name column: {nameCol}");
         if (forenameCol > 0) Console.WriteLine($"  Forename column: {forenameCol}");
         if (surnameCol > 0) Console.WriteLine($"  Surname column: {surnameCol}");
@@ -122,32 +111,35 @@ public class ExcelService : IExcelService
 
             string programmeValue = programmeCol > 0 ? worksheet.Cells[row, programmeCol].Value?.ToString()?.Trim() ?? "" : "";
             
-            // Determine name
-            string finalName = "";
+            string forename = "";
+            string surname = "";
+            
             if (nameCol > 0)
             {
-                finalName = worksheet.Cells[row, nameCol].Value?.ToString()?.Trim() ?? "";
+                var fullName = worksheet.Cells[row, nameCol].Value?.ToString()?.Trim() ?? "";
+                var nameParts = fullName.Split(' ', 2);
+                forename = nameParts.Length > 0 ? nameParts[0] : "";
+                surname = nameParts.Length > 1 ? nameParts[1] : "";
             }
             else
             {
-                string fName = forenameCol > 0 ? worksheet.Cells[row, forenameCol].Value?.ToString()?.Trim() ?? "" : "";
-                string sName = surnameCol > 0 ? worksheet.Cells[row, surnameCol].Value?.ToString()?.Trim() ?? "" : "";
-                finalName = $"{fName} {sName}".Trim();
+                forename = forenameCol > 0 ? worksheet.Cells[row, forenameCol].Value?.ToString()?.Trim() ?? "" : "";
+                surname = surnameCol > 0 ? worksheet.Cells[row, surnameCol].Value?.ToString()?.Trim() ?? "" : "";
             }
 
             var record = new StudentRecord
             {
                 StudentNo = studentNo,
                 Decision = worksheet.Cells[row, decisionCol].Value?.ToString()?.Trim() ?? "",
-                Name = finalName,
+                Forename = forename,
+                Surname = surname,
                 Programme = programmeValue,
                 Status = ProcessingStatus.Pending
             };
 
-            // Debug: Log first few records
             if (students.Count < 5)
             {
-                Console.WriteLine($"  Loaded: StudentNo={record.StudentNo}, Decision={record.Decision}, Programme='{record.Programme}'");
+                Console.WriteLine($"  Loaded: StudentNo={record.StudentNo}, Decision={record.Decision}, Name={record.Forename} {record.Surname}, Programme='{record.Programme}'");
             }
 
             students.Add(record);
