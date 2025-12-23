@@ -60,6 +60,48 @@ Playwrighter reads your decisions from an Excel spreadsheet and automates the en
 | **Configurable** | Adjust delays, headless mode, and more |
 
 ---
+Architecture
+Playwrighter follows the MVVM (Model-View-ViewModel) architectural pattern, providing clear separation of concerns for maintainability and testability.
+
+┌─────────────────────────────────────────────────────────────┐
+│                          VIEW                               │
+│         (Avalonia XAML - MainWindow, ProcessingWindow)      │
+│                                                             │
+│   ┌─────────────────┐    ┌─────────────────────────────┐    │
+│   │  MainWindow     │    │  ProcessingWindow           │    │
+│   │  - File panels  │    │  - Progress bar             │    │
+│   │  - Settings     │    │  - Student list             │    │
+│   │  - Start button │    │  - Status log               │    │
+│   └─────────────────┘    └─────────────────────────────┘    │
+└──────────────────────────────┬──────────────────────────────┘
+│ Data Binding
+┌──────────────────────────────▼──────────────────────────────┐
+│                       VIEWMODEL                             │
+│              (Event handling, state management)             │
+│                                                             │
+│   - ProcessingStudentViewModel                              │
+│   - Observable collections for real-time UI updates         │
+│   - Command bindings for user interactions                  │
+└──────────────────────────────┬──────────────────────────────┘
+│
+┌──────────────────────────────▼──────────────────────────────┐
+│                         MODEL                               │
+│                (Business logic, data, services)             │
+│                                                             │
+│   ┌────────────────┐  ┌────────────────┐  ┌──────────────┐  │
+│   │  Models/       │  │  Services/     │  │  Playwright  │  │
+│   │  - Student     │  │  - Excel       │  │  - Browser   │  │
+│   │  - Decision    │  │  - Automation  │  │  - Portico   │  │
+│   │  - Programme   │  │  - Mapping     │  │  - Actions   │  │
+│   └────────────────┘  └────────────────┘  └──────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+
+Key Components:
+
+Views — Avalonia XAML windows and controls (MainWindow, ProcessingWindow, SettingsWindow)
+ViewModels — Handle UI state and expose observable properties for data binding
+Models — Data structures for students, decisions, and programme mappings
+Services — Business logic for Excel parsing, programme matching, and Playwright automation
 
 ## Programme Code Mapping
 
