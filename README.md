@@ -60,10 +60,22 @@ Playwrighter reads your decisions from an Excel spreadsheet and automates the en
 | **Configurable** | Adjust delays, headless mode, and more |
 
 ---
+
+### UI Design
+
+The interface features a modern **glassmorphic design** inspired by contemporary web frameworks:
+
+- **Acrylic blur effects** — Frosted glass transparency on panels
+- **Soft shadows** — Subtle depth with drop shadows
+- **Rounded corners** — Modern card-based layouts
+- **Color-coded status indicators** — Green (done), blue (processing), gray (pending)
+- **Smooth animations** — Fade-in effects and progress transitions
+- **Cross-platform consistency** — Identical look on Windows and macOS
+
+---
+
 Architecture
 Playwrighter follows the MVVM (Model-View-ViewModel) architectural pattern, providing clear separation of concerns for maintainability and testability.
-┌─────────────────────────────────────────────────────────────┐
-
 
 Key Components:
 
@@ -71,6 +83,46 @@ Views — Avalonia XAML windows and controls (MainWindow, ProcessingWindow, Sett
 ViewModels — Handle UI state and expose observable properties for data binding
 Models — Data structures for students, decisions, and programme mappings
 Services — Business logic for Excel parsing, programme matching, and Playwright automation
+
+
+## Architecture
+
+Playwrighter follows the **MVVM (Model-View-ViewModel)** architectural pattern, providing clear separation of concerns for maintainability and testability.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                          VIEW                               │
+│         (Avalonia XAML - MainWindow, ProcessingWindow)      │
+│                                                             │
+│   ┌─────────────────┐    ┌─────────────────────────────┐   │
+│   │  MainWindow     │    │  ProcessingWindow           │   │
+│   │  - File panels  │    │  - Progress bar             │   │
+│   │  - Settings     │    │  - Student list             │   │
+│   │  - Start button │    │  - Status log               │   │
+│   └─────────────────┘    └─────────────────────────────┘   │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ Data Binding
+┌──────────────────────────────▼──────────────────────────────┐
+│                       VIEWMODEL                             │
+│              (Event handling, state management)             │
+│                                                             │
+│   - ProcessingStudentViewModel                              │
+│   - Observable collections for real-time UI updates         │
+│   - Command bindings for user interactions                  │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────┐
+│                         MODEL                               │
+│                (Business logic, data, services)             │
+│                                                             │
+│   ┌────────────────┐  ┌────────────────┐  ┌──────────────┐ │
+│   │  Models/       │  │  Services/     │  │  Playwright  │ │
+│   │  - Student     │  │  - Excel       │  │  - Browser   │ │
+│   │  - Decision    │  │  - Automation  │  │  - Portico   │ │
+│   │  - Programme   │  │  - Mapping     │  │  - Actions   │ │
+│   └────────────────┘  └────────────────┘  └──────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ## Programme Code Mapping
 
@@ -130,6 +182,33 @@ playwrighter/
 
 ## Getting Started
 
+
+## Building Standalone Executables
+
+### Windows (.exe)
+```powershell
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+```
+Output: `bin/Release/net10.0/win-x64/publish/Playwrighter.exe`
+
+### macOS (.app)
+```bash
+# Intel Mac
+dotnet publish -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=true
+
+# Apple Silicon (M1/M2/M3)
+dotnet publish -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true
+```
+Output: `bin/Release/net10.0/osx-x64/publish/Playwrighter` (or `osx-arm64`)
+
+### Notes on File Size
+Self-contained builds include the .NET runtime (~100-150 MB). For smaller builds that require .NET to be installed on the target machine:
+```bash
+dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
+```
+This produces a ~1 MB executable but requires .NET 10 Desktop Runtime on the target PC.
+
+---
 ### Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
