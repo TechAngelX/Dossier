@@ -2,7 +2,7 @@
   <h1>Playwrighter</h1>
   <p><strong>Automate UCL Portico admissions processing with Playwright browser automation</strong></p>
 
-<table>
+<table> 
   <tr>
     <td><img src="./public/images/screenshot1.png" alt="Main Interface" width="400"></td>
     <td><img src="./public/images/screenshot2.png" alt="Processing View" width="400"></td>
