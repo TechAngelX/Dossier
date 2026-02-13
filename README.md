@@ -24,7 +24,7 @@
 
 ## About the Project
 
-**Playwrighter** is a cross-platform desktop application that automates the repetitive task of processing student admissions decisions in UCL's Portico system. Instead of manually clicking through dozens of student records, simply load your Excel spreadsheet and let the automation handle the rest.
+**Playwrighter** is a cross-platform desktop application that automates repetitive admissions workflows in university student record systems. Instead of manually clicking through hundreds of student records, staff can load a spreadsheet and let the automation handle batch decision processing and document generation — reducing hours of manual work to minutes.
 
 
 The app utilises <a href="https://playwright.dev/">Playwright</a>, an open-source browser automation tool developed by Microsoft, to automate web browsers for testing, automation, and interaction with web applications—such as clicking buttons, filling forms, capturing screenshots, and navigating pages.
@@ -39,11 +39,14 @@ During admissions season, staff must process hundreds of student applications by
 6. Clicking Process
 7. Repeating for every student...
 
-This manual process is tedious, error-prone, and time-consuming.
+Additionally, academic reviewers who need to assess applicants must manually open each student record, navigate to their documents, and click through individual PDFs one by one. For large cohorts, this means hours of repetitive clicking just to review application materials.
 
 ### The Solution
 
-Playwrighter reads your decisions from an Excel spreadsheet and automates the entire workflow using Microsoft Edge browser automation. It intelligently matches students to their correct programme applications and processes offers or rejections in seconds.
+Playwrighter reads student data from an Excel or CSV file and automates the entire workflow using Microsoft Edge browser automation. It supports two core functions:
+
+- **Batch Decision Processing** — Automatically processes Accept/Reject recommendations for hundreds of students, intelligently matching each to their correct programme application.
+- **Merge Overview** — Automatically generates and downloads a merged overview PDF for each student, combining all their application documents (personal statement, CV, transcripts, references, etc.) into a single file. The resulting batch folder can be handed directly to reviewers, eliminating the need to navigate the system record by record.
 
 ---
 
@@ -51,11 +54,13 @@ Playwrighter reads your decisions from an Excel spreadsheet and automates the en
 
 | Feature | Description |
 |---------|-------------|
-| **Drag and Drop Excel** | Simply drag your spreadsheet onto the app |
+| **Drag and Drop Excel/CSV** | Load student data from .xlsx, .xls, or .csv files |
 | **Smart Programme Matching** | Automatically maps short codes (ML, CS, FT) to Portico codes (TMSCOMSMCL01, etc.) |
-| **Batch Processing** | Process multiple Accept/Reject decisions in one run |
+| **Batch Decision Processing** | Process multiple Accept/Reject recommendations in one run |
+| **Merge Overview** | Generate and download merged overview PDFs for entire cohorts in a single batch |
 | **Persistent Login** | SSO session saved between runs — no repeated MFA |
-| **Real-time Status** | Live progress log shows each step |
+| **Real-time Status** | Live progress log with step-by-step visibility |
+| **Failure Recovery** | Automatically recovers and continues to the next student if a record fails |
 | **Cross-Platform** | Works on Windows, macOS, and Linux |
 | **Configurable** | Adjust delays, headless mode, and more |
 
@@ -149,7 +154,7 @@ The app automatically converts spreadsheet short codes to Portico programme code
 | **.NET 10**        | Runtime framework                    |
 | **Avalonia UI 11** | Cross-platform UI framework          |
 | **Playwright**     | Browser automation engine            |
-| **EPPlus**         | Excel file parsing                   |
+| **EPPlus**         | Excel and CSV file parsing            |
 | **Microsoft Edge** | Automated browser (with SSO support) |
 
 ---
@@ -238,22 +243,46 @@ dotnet run
 
 ## Usage
 
-1. **Load Excel file** — Drag and drop or browse to select your admissions spreadsheet
-2. **Select worksheet** — Choose the sheet containing student decisions (auto-selects "Dept In-tray")
-3. **Filter decisions** — Check "Process Accepts" and/or "Process Rejects"
+### Accept/Reject Processing
+
+1. **Load spreadsheet** — Drag and drop or browse to select your Excel or CSV file
+2. **Select worksheet** — Choose the sheet containing student decisions (auto-selects "Dept In-tray"; skipped for CSV)
+3. **Select mode** — Choose "Process Accepts" or "Process Rejects"
 4. **Click Start** — The browser will launch and begin automation
 5. **Complete MFA** — On first run, complete SSO/MFA login (session saves for 60 days)
 6. **Monitor progress** — Watch the status log for real-time updates
 
-### Expected Excel Format
+### Merge Overview
 
-Your spreadsheet should have columns including:
+1. **Load spreadsheet** — Drag and drop an Excel or CSV file containing student numbers and programme codes
+2. **Select "Merge Overview"** mode
+3. **Click Start** — For each student, the app will:
+   - Navigate to their record and select the correct programme
+   - Open the Documents & Uploads tab
+   - Click "Create Overview.pdf" (or "Amend Overview.pdf" if one already exists)
+   - Wait for server processing to complete
+   - Click "Merge Documents" and confirm
+   - Download the merged PDF to `Desktop/LATEST_BATCH/`
+   - Return to the search screen and repeat for the next student
+4. **Collect results** — All merged PDFs are saved to a single folder, ready for offline review
+
+### Expected Input Format
+
+**For Accept/Reject processing** — requires StudentNo, Programme, and Decision columns:
 
 | StudentNo | Programme | Decision | *(other columns)* |
 |-----------|-----------|----------|-------------------|
 | 26034803 | ML | Accept | ... |
 | 26045424 | CS | Reject | ... |
 | 23014690 | ML | Accept | ... |
+
+**For Merge Overview** — only StudentNo and Programme are required:
+
+| StudentNo | Programme |
+|-----------|-----------|
+| 26034803 | ML |
+| 26045424 | CS |
+| 23014690 | DSML |
 
 ---
 
@@ -274,19 +303,23 @@ Click the ⚙️ Settings button to configure:
 ## How It Works
 
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│  Excel File     │────▶│  Playwrighter   │────▶│  Portico        │
-│  (Decisions)    │     │  (Automation)   │     │  (Browser)      │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-                              │
-                              ▼
-                    ┌─────────────────────┐
-                    │  For each student:  │
-                    │  1. Search by ID    │
-                    │  2. Match programme │ 
-                    │  3. Click Actions   │
-                    │  4. Process decision│
-                    └─────────────────────┘
+┌──────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Excel / CSV     │────▶│  Playwrighter   │────▶│  Portico        │
+│  (Student Data)  │     │  (Automation)   │     │  (Browser)      │
+└──────────────────┘     └─────────────────┘     └─────────────────┘
+                               │
+                 ┌─────────────┴─────────────┐
+                 ▼                           ▼
+    ┌────────────────────┐      ┌────────────────────────┐
+    │  Accept/Reject     │      │  Merge Overview        │
+    │  1. Search by ID   │      │  1. Search by ID       │
+    │  2. Match programme│      │  2. Match programme    │
+    │  3. Click Actions  │      │  3. Documents tab      │
+    │  4. Process decision│     │  4. Create/Amend PDF   │
+    └────────────────────┘      │  5. Merge Documents    │
+                                │  6. Download PDF       │
+                                │  7. Exit & repeat      │
+                                └────────────────────────┘
 ```
 
 ---

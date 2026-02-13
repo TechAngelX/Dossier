@@ -82,7 +82,7 @@
                             
                             <StackPanel Spacing="5">
                                 <TextBlock x:Name="DropZoneText"
-                                           Text="Drag &amp; Drop Excel File"
+                                           Text="Drag &amp; Drop Excel or CSV File"
                                            FontSize="18"
                                            FontWeight="SemiBold"
                                            Foreground="#1E293B"
@@ -181,13 +181,18 @@
                         <StackPanel Spacing="15">
                             <TextBlock Text="Processing Options:" FontWeight="SemiBold"/>
                             <WrapPanel Orientation="Horizontal">
-                                <RadioButton x:Name="ProcessRejectsCheckBox" 
-                                          Content="Process Rejects" 
+                                <RadioButton x:Name="ProcessRejectsCheckBox"
+                                          Content="Process Rejects"
                                           IsChecked="True"
                                           Margin="0,0,20,0"
                                           GroupName="ProcessingMode"/>
-                                <RadioButton x:Name="ProcessAcceptsCheckBox" 
-                                          Content="Process Accepts" 
+                                <RadioButton x:Name="ProcessAcceptsCheckBox"
+                                          Content="Process Accepts"
+                                          IsChecked="False"
+                                          Margin="0,0,20,0"
+                                          GroupName="ProcessingMode"/>
+                                <RadioButton x:Name="MergeOverviewCheckBox"
+                                          Content="Merge Overview"
                                           IsChecked="False"
                                           GroupName="ProcessingMode"/>
                             </WrapPanel>

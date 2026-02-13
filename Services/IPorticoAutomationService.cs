@@ -17,5 +17,6 @@ public interface IPorticoAutomationService
     Task<bool> NavigateToUclSelectAsync();
     Task ProcessStudentAcceptAsync(StudentRecord student);
     Task ProcessStudentRejectAsync(StudentRecord student);
+    Task ProcessStudentMergeOverviewAsync(StudentRecord student, string downloadPath);
     Task CloseAsync();
 }

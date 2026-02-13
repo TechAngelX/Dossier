@@ -38,6 +38,7 @@ public partial class MainWindow : Window
     private Border _actionPanel = null!;
     private RadioButton _processAcceptsCheckBox = null!;
     private RadioButton _processRejectsCheckBox = null!;
+    private RadioButton _mergeOverviewCheckBox = null!;
     private CheckBox _debugModeCheckBox = null!;
     private Button _startButton = null!;
     private Button _stopButton = null!;
@@ -81,6 +82,7 @@ public partial class MainWindow : Window
         _actionPanel = this.FindControl<Border>("ActionPanel")!;
         _processAcceptsCheckBox = this.FindControl<RadioButton>("ProcessAcceptsCheckBox")!;
         _processRejectsCheckBox = this.FindControl<RadioButton>("ProcessRejectsCheckBox")!;
+        _mergeOverviewCheckBox = this.FindControl<RadioButton>("MergeOverviewCheckBox")!;
         _debugModeCheckBox = this.FindControl<CheckBox>("DebugModeCheckBox")!;
         _startButton = this.FindControl<Button>("StartButton")!;
         _stopButton = this.FindControl<Button>("StopButton")!;
@@ -105,6 +107,7 @@ public partial class MainWindow : Window
         _exitButton.Click += ExitButton_Click;
         _processAcceptsCheckBox.IsCheckedChanged += FilterCheckBox_Changed;
         _processRejectsCheckBox.IsCheckedChanged += FilterCheckBox_Changed;
+        _mergeOverviewCheckBox.IsCheckedChanged += FilterCheckBox_Changed;
         _resetButton.Click += ResetButton_Click;  
 
     }
@@ -124,28 +127,47 @@ public partial class MainWindow : Window
         
         var processAccepts = _processAcceptsCheckBox.IsChecked ?? false;
         var processRejects = _processRejectsCheckBox.IsChecked ?? false;
-        
-        var filtered = _allStudents.Where(s =>
+        var mergeOverview = _mergeOverviewCheckBox.IsChecked ?? false;
+
+        List<StudentRecord> filtered;
+
+        if (mergeOverview)
         {
-            var isAccept = s.Decision.Equals("Accept", StringComparison.OrdinalIgnoreCase);
-            var isReject = s.Decision.Equals("Reject", StringComparison.OrdinalIgnoreCase);
-            
-            if (isAccept && processAccepts) return true;
-            if (isReject && processRejects) return true;
-            return false;
-        }).ToList();
-        
+            // Merge Overview mode: include all students
+            filtered = _allStudents.ToList();
+        }
+        else
+        {
+            filtered = _allStudents.Where(s =>
+            {
+                var isAccept = s.Decision.Equals("Accept", StringComparison.OrdinalIgnoreCase);
+                var isReject = s.Decision.Equals("Reject", StringComparison.OrdinalIgnoreCase);
+
+                if (isAccept && processAccepts) return true;
+                if (isReject && processRejects) return true;
+                return false;
+            }).ToList();
+        }
+
         _students = new ObservableCollection<StudentRecord>(filtered);
         _studentGrid.ItemsSource = null;
         _studentGrid.ItemsSource = _students;
-        
+
         var acceptCount = filtered.Count(s => s.Decision.Equals("Accept", StringComparison.OrdinalIgnoreCase));
         var rejectCount = filtered.Count(s => s.Decision.Equals("Reject", StringComparison.OrdinalIgnoreCase));
-        
-        _studentCountText.Text = $"Showing: {filtered.Count} | Accepts: {acceptCount} | Rejects: {rejectCount}";
-        UpdateFooterStatus($"Ready to process {filtered.Count} students");
-        
-        LogStatus($"Filtered: {filtered.Count} students to process (Accepts: {acceptCount}, Rejects: {rejectCount})");
+
+        if (mergeOverview)
+        {
+            _studentCountText.Text = $"Showing: {filtered.Count} | Merge Overview mode";
+            UpdateFooterStatus($"Ready to merge overview for {filtered.Count} students");
+            LogStatus($"Merge Overview mode: {filtered.Count} students loaded");
+        }
+        else
+        {
+            _studentCountText.Text = $"Showing: {filtered.Count} | Accepts: {acceptCount} | Rejects: {rejectCount}";
+            UpdateFooterStatus($"Ready to process {filtered.Count} students");
+            LogStatus($"Filtered: {filtered.Count} students to process (Accepts: {acceptCount}, Rejects: {rejectCount})");
+        }
     }
     
     private void SetupDragDrop()
@@ -191,9 +213,13 @@ public partial class MainWindow : Window
                 {
                     await LoadExcelFileAsync(path);
                 }
+                else if (path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+                {
+                    LoadCsvFile(path);
+                }
                 else
                 {
-                    LogStatus("Please drop an Excel file (.xlsx or .xls)");
+                    LogStatus("Please drop an Excel (.xlsx/.xls) or CSV (.csv) file");
                 }
             }
         }
@@ -206,20 +232,24 @@ public partial class MainWindow : Window
         
         var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Select Excel File",
+            Title = "Select Excel or CSV File",
             AllowMultiple = false,
             FileTypeFilter = new[]
             {
-                new FilePickerFileType("Excel Files")
+                new FilePickerFileType("Spreadsheet Files")
                 {
-                    Patterns = new[] { "*.xlsx", "*.xls" }
+                    Patterns = new[] { "*.xlsx", "*.xls", "*.csv" }
                 }
             }
         });
-        
+
         if (files.Count > 0)
         {
-            await LoadExcelFileAsync(files[0].Path.LocalPath);
+            var path = files[0].Path.LocalPath;
+            if (path.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+                LoadCsvFile(path);
+            else
+                await LoadExcelFileAsync(path);
         }
     }
     
@@ -256,7 +286,38 @@ public partial class MainWindow : Window
         }
     }
     
-private void LoadSheetButton_Click(object? sender, RoutedEventArgs e)
+    private void LoadCsvFile(string filePath)
+    {
+        try
+        {
+            _currentFilePath = filePath;
+            _dropZoneText.Text = $"Loaded: {Path.GetFileName(filePath)}";
+            LogStatus($"Loaded CSV file: {filePath}");
+
+            _allStudents = _excelService.LoadStudentsFromCsv(filePath);
+
+            var totalAccepts = _allStudents.Count(s =>
+                s.Decision.Equals("Accept", StringComparison.OrdinalIgnoreCase));
+            var totalRejects = _allStudents.Count(s =>
+                s.Decision.Equals("Reject", StringComparison.OrdinalIgnoreCase));
+
+            LogStatus($"Loaded {_allStudents.Count} students from CSV (Accepts: {totalAccepts}, Rejects: {totalRejects})");
+
+            // Skip sheet selection for CSV - go straight to data display
+            _dropZone.IsVisible = false;
+            _sheetSelectionPanel.IsVisible = false;
+            _studentListPanel.IsVisible = true;
+            _actionPanel.IsVisible = true;
+
+            FilterStudentList();
+        }
+        catch (Exception ex)
+        {
+            LogStatus($"Error loading CSV: {ex.Message}");
+        }
+    }
+
+    private void LoadSheetButton_Click(object? sender, RoutedEventArgs e)
     {
         try
         {
@@ -345,67 +406,106 @@ private void LoadSheetButton_Click(object? sender, RoutedEventArgs e)
             }
             
             await _automationService.NavigateToUclSelectAsync();
-            
+
             var processAccepts = _processAcceptsCheckBox.IsChecked ?? true;
             var processRejects = _processRejectsCheckBox.IsChecked ?? false;
-            
-            // DEBUG MODE: Process only first student
-            if (debugMode)
+            var mergeOverview = _mergeOverviewCheckBox.IsChecked ?? false;
+
+            if (mergeOverview)
             {
-                processingWindow.LogMessage("🐛 DEBUG MODE: Processing only FIRST student");
-                var firstStudent = _students.First();
-                
-                var isAccept = firstStudent.Decision.Equals("Accept", StringComparison.OrdinalIgnoreCase);
-                var isReject = firstStudent.Decision.Equals("Reject", StringComparison.OrdinalIgnoreCase);
-                
-                if (isAccept && processAccepts)
+                // MERGE OVERVIEW MODE
+                var downloadPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                    "LATEST_BATCH");
+                Directory.CreateDirectory(downloadPath);
+                processingWindow.LogMessage($"Download path: {downloadPath}");
+
+                if (debugMode)
                 {
-                    await _automationService.ProcessStudentAcceptAsync(firstStudent);
+                    processingWindow.LogMessage("DEBUG MODE: Processing only FIRST student for merge overview");
+                    var firstStudent = _students.First();
+                    await _automationService.ProcessStudentMergeOverviewAsync(firstStudent, downloadPath);
+                    processingWindow.LogMessage("DEBUG MODE COMPLETE: Browser paused for inspection.");
+                    processingWindow.UpdateFooterStatus("Debug mode complete - browser paused");
+                    processingWindow.ProcessingComplete();
+                    RefreshStudentGrid();
+                    return;
                 }
-                else if (isReject && processRejects)
+
+                foreach (var student in _students)
                 {
-                    await _automationService.ProcessStudentRejectAsync(firstStudent);
+                    if (_cancellationTokenSource.Token.IsCancellationRequested)
+                    {
+                        processingWindow.LogMessage("Processing cancelled by user.");
+                        processingWindow.UpdateFooterStatus("Cancelled");
+                        break;
+                    }
+
+                    await _automationService.ProcessStudentMergeOverviewAsync(student, downloadPath);
+                    RefreshStudentGrid();
                 }
-                
-                processingWindow.LogMessage("🐛 DEBUG MODE COMPLETE: Browser paused for inspection.");
-                processingWindow.LogMessage("🐛 Verify that 'Reject' is selected and 'Reason 1' shows option 8");
-                processingWindow.UpdateFooterStatus("Debug mode complete - browser paused");
-                processingWindow.ProcessingComplete();
-                
-                RefreshStudentGrid();
-                return;
             }
-            
-            // NORMAL MODE: Process all students
-            foreach (var student in _students)
+            else
             {
-                if (_cancellationTokenSource.Token.IsCancellationRequested)
+                // ACCEPT/REJECT MODE
+                // DEBUG MODE: Process only first student
+                if (debugMode)
                 {
-                    processingWindow.LogMessage("Processing cancelled by user.");
-                    processingWindow.UpdateFooterStatus("Cancelled");
-                    break;
+                    processingWindow.LogMessage("DEBUG MODE: Processing only FIRST student");
+                    var firstStudent = _students.First();
+
+                    var isAccept = firstStudent.Decision.Equals("Accept", StringComparison.OrdinalIgnoreCase);
+                    var isReject = firstStudent.Decision.Equals("Reject", StringComparison.OrdinalIgnoreCase);
+
+                    if (isAccept && processAccepts)
+                    {
+                        await _automationService.ProcessStudentAcceptAsync(firstStudent);
+                    }
+                    else if (isReject && processRejects)
+                    {
+                        await _automationService.ProcessStudentRejectAsync(firstStudent);
+                    }
+
+                    processingWindow.LogMessage("DEBUG MODE COMPLETE: Browser paused for inspection.");
+                    processingWindow.LogMessage("Verify that 'Reject' is selected and 'Reason 1' shows option 8");
+                    processingWindow.UpdateFooterStatus("Debug mode complete - browser paused");
+                    processingWindow.ProcessingComplete();
+
+                    RefreshStudentGrid();
+                    return;
                 }
-                
-                var isAccept = student.Decision.Equals("Accept", StringComparison.OrdinalIgnoreCase);
-                var isReject = student.Decision.Equals("Reject", StringComparison.OrdinalIgnoreCase);
-                
-                if (isAccept && processAccepts)
+
+                // NORMAL MODE: Process all students
+                foreach (var student in _students)
                 {
-                    await _automationService.ProcessStudentAcceptAsync(student);
-                    await _automationService.NavigateToUclSelectAsync();
+                    if (_cancellationTokenSource.Token.IsCancellationRequested)
+                    {
+                        processingWindow.LogMessage("Processing cancelled by user.");
+                        processingWindow.UpdateFooterStatus("Cancelled");
+                        break;
+                    }
+
+                    var isAccept = student.Decision.Equals("Accept", StringComparison.OrdinalIgnoreCase);
+                    var isReject = student.Decision.Equals("Reject", StringComparison.OrdinalIgnoreCase);
+
+                    if (isAccept && processAccepts)
+                    {
+                        await _automationService.ProcessStudentAcceptAsync(student);
+                        await _automationService.NavigateToUclSelectAsync();
+                    }
+                    else if (isReject && processRejects)
+                    {
+                        await _automationService.ProcessStudentRejectAsync(student);
+                        await _automationService.NavigateToUclSelectAsync();
+                    }
+                    else
+                    {
+                        student.Status = ProcessingStatus.Skipped;
+                        processingWindow.LogMessage($"Skipped {student.StudentNo} (Decision: {student.Decision})");
+                    }
+
+                    RefreshStudentGrid();
                 }
-                else if (isReject && processRejects)
-                {
-                    await _automationService.ProcessStudentRejectAsync(student);
-                    await _automationService.NavigateToUclSelectAsync();
-                }
-                else
-                {
-                    student.Status = ProcessingStatus.Skipped;
-                    processingWindow.LogMessage($"Skipped {student.StudentNo} (Decision: {student.Decision})");
-                }
-                
-                RefreshStudentGrid();
             }
             
             processingWindow.LogMessage("Processing complete.");
@@ -444,7 +544,7 @@ private void LoadSheetButton_Click(object? sender, RoutedEventArgs e)
         _students.Clear();
         _currentFilePath = string.Empty;
         
-        _dropZoneText.Text = "Drag and drop your Excel file here";
+        _dropZoneText.Text = "Drag & Drop Excel or CSV File";
         _dropZone.IsVisible = true;
         _sheetSelectionPanel.IsVisible = false;
         _studentListPanel.IsVisible = false;
@@ -455,6 +555,7 @@ private void LoadSheetButton_Click(object? sender, RoutedEventArgs e)
         
         _processRejectsCheckBox.IsChecked = true;
         _processAcceptsCheckBox.IsChecked = false;
+        _mergeOverviewCheckBox.IsChecked = false;
         _debugModeCheckBox.IsChecked = false;
         
         UpdateFooterStatus("Ready");

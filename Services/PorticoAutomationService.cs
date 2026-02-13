@@ -447,6 +447,278 @@ public class PorticoAutomationService : IPorticoAutomationService
         LogStatus("Rejection processed.");
     }
 
+    public async Task ProcessStudentMergeOverviewAsync(StudentRecord student, string downloadPath)
+    {
+        if (_page == null) throw new InvalidOperationException("Service not initialised.");
+
+        student.Status = ProcessingStatus.Processing;
+        StudentProcessed?.Invoke(this, student);
+
+        try
+        {
+            LogStatus($"=== MERGE OVERVIEW: {student.StudentNo} ===");
+
+            // Step 1: Search and enter student record
+            LogStatus("[Step 1] Searching for student...");
+            await SearchForStudentAsync(student.StudentNo);
+            await ClickStudentLinkAsync(student);
+            LogStatus("[Step 1] Entered student record.");
+
+            // Step 2: Click "Documents & Uploads" tab
+            LogStatus("[Step 2] Clicking 'Documents & Uploads' tab...");
+            var docsTab = _page.Locator("a").Filter(new() { HasText = "Documents" }).First;
+            await docsTab.ClickAsync();
+            await _page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            await Task.Delay(1000);
+            LogStatus("[Step 2] Documents tab loaded.");
+
+            // Step 3: Click "Create Overview.pdf" or "Amend Overview.pdf"
+            LogStatus("[Step 3] Looking for Create/Amend Overview button...");
+
+            // Debug: log every input/button on the page so we can see what's there
+            var pageButtons = await _page.EvaluateAsync<string>(@"() => {
+                const elements = document.querySelectorAll('input[type=submit], input[type=button], button, input[type=reset]');
+                return Array.from(elements).map(el =>
+                    el.tagName + ' | type=' + el.type + ' | value=""' + (el.value || '') + '"" | text=""' + (el.textContent || '').trim() + '""'
+                ).join('\n');
+            }");
+            LogStatus($"[Step 3] Buttons found on page:\n{pageButtons}");
+
+            // Use JavaScript to find and click the overview button — most reliable approach
+            var clickResult = await _page.EvaluateAsync<string>(@"() => {
+                const elements = document.querySelectorAll('input, button, a');
+                for (const el of elements) {
+                    const text = ((el.value || '') + ' ' + (el.textContent || '')).toLowerCase();
+                    if (text.includes('create overview') || text.includes('amend overview')) {
+                        el.click();
+                        return 'CLICKED: ' + el.tagName + ' | ' + (el.value || el.textContent || '').trim();
+                    }
+                }
+                return 'NOT_FOUND';
+            }");
+            LogStatus($"[Step 3] {clickResult}");
+
+            if (clickResult == "NOT_FOUND")
+                throw new Exception("Could not find any Create/Amend Overview button on the page.");
+
+            // The JS click triggers a form POST. The page will navigate.
+            // Poll until we can confirm the page has reloaded (readyState goes through loading→complete)
+            LogStatus("[Step 3] Waiting for page to load (up to 2 minutes)...");
+            var waited = 0;
+            while (waited < 120000)
+            {
+                await Task.Delay(2000);
+                waited += 2000;
+                try
+                {
+                    var state = await _page.EvaluateAsync<string>("() => document.readyState");
+                    if (state == "complete")
+                    {
+                        // Page has loaded — but is it the NEW page? Check if the overview button is gone
+                        var stillHasOverview = await _page.EvaluateAsync<bool>(@"() => {
+                            const elements = document.querySelectorAll('input, button, a');
+                            for (const el of elements) {
+                                const text = ((el.value || '') + ' ' + (el.textContent || '')).toLowerCase();
+                                if (text.includes('create overview') || text.includes('amend overview')) return true;
+                            }
+                            return false;
+                        }");
+                        // If the overview button is gone, the page has changed
+                        if (!stillHasOverview)
+                        {
+                            LogStatus($"[Step 3] Page reloaded (took ~{waited / 1000}s).");
+                            break;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Page is mid-navigation, keep waiting
+                    LogStatus($"[Step 3] Still loading... ({waited / 1000}s)");
+                }
+            }
+            await _page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 60000 });
+            await Task.Delay(2000);
+            LogStatus("[Step 3] Page loaded after overview creation.");
+
+            // Step 4: Click "Merge Documents"
+            LogStatus("[Step 4] Looking for 'Merge Documents' button...");
+            ILocator? mergeBtn = null;
+
+            var mergeBtnSelectors = new[]
+            {
+                "input[value='Merge Documents']",
+                "button:has-text('Merge Documents')",
+                "a:has-text('Merge Documents')",
+            };
+
+            foreach (var selector in mergeBtnSelectors)
+            {
+                var candidate = _page.Locator(selector).First;
+                if (await candidate.IsVisibleAsync())
+                {
+                    mergeBtn = candidate;
+                    LogStatus($"[Step 4] Found with selector: {selector}");
+                    break;
+                }
+            }
+
+            if (mergeBtn == null)
+                throw new Exception("Could not find 'Merge Documents' button on the page.");
+
+            await mergeBtn.ScrollIntoViewIfNeededAsync();
+            await Task.Delay(500);
+            LogStatus("[Step 4] Clicking 'Merge Documents'...");
+            await mergeBtn.ClickAsync();
+            await Task.Delay(2000);
+
+            // Step 5: Confirmation modal — click "Yes"
+            LogStatus("[Step 5] Waiting for confirmation modal...");
+            ILocator? yesBtn = null;
+
+            var yesBtnSelectors = new[]
+            {
+                "input[value='Yes']",
+                "button:has-text('Yes')",
+                "a:has-text('Yes')",
+            };
+
+            // Wait for the modal to appear
+            for (int attempt = 0; attempt < 10; attempt++)
+            {
+                foreach (var selector in yesBtnSelectors)
+                {
+                    var candidate = _page.Locator(selector).First;
+                    if (await candidate.IsVisibleAsync())
+                    {
+                        yesBtn = candidate;
+                        break;
+                    }
+                }
+                if (yesBtn != null) break;
+                await Task.Delay(1000);
+            }
+
+            if (yesBtn == null)
+                throw new Exception("Confirmation modal 'Yes' button did not appear.");
+
+            LogStatus("[Step 5] Clicking 'Yes' via JS and waiting for merge processing...");
+            await _page.EvaluateAsync(@"() => {
+                const elements = document.querySelectorAll('input, button, a');
+                for (const el of elements) {
+                    const text = ((el.value || '') + ' ' + (el.textContent || '')).toLowerCase().trim();
+                    if (text === 'yes') { el.click(); return; }
+                }
+            }");
+
+            // Poll until the Yes button disappears (modal closed, page navigating)
+            var yesWaited = 0;
+            while (yesWaited < 120000)
+            {
+                await Task.Delay(2000);
+                yesWaited += 2000;
+                try
+                {
+                    var state = await _page.EvaluateAsync<string>("() => document.readyState");
+                    // Check if the Yes button / modal is gone
+                    var stillHasYes = await _page.EvaluateAsync<bool>(@"() => {
+                        const elements = document.querySelectorAll('input, button');
+                        for (const el of elements) {
+                            const text = ((el.value || '') + ' ' + (el.textContent || '')).toLowerCase().trim();
+                            if (text === 'yes') return true;
+                        }
+                        return false;
+                    }");
+                    if (state == "complete" && !stillHasYes)
+                    {
+                        LogStatus($"[Step 5] Merge complete (took ~{yesWaited / 1000}s).");
+                        break;
+                    }
+                }
+                catch
+                {
+                    LogStatus($"[Step 5] Still processing... ({yesWaited / 1000}s)");
+                }
+            }
+            await _page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 60000 });
+            await Task.Delay(2000);
+            LogStatus("[Step 5] Merge processing complete.");
+
+            // Step 6: Download the overview PDF
+            LogStatus("[Step 6] Looking for overview PDF link...");
+            var pdfLink = _page.Locator("a").Filter(
+                new() { HasTextRegex = new System.Text.RegularExpressions.Regex(
+                    $@"{System.Text.RegularExpressions.Regex.Escape(student.StudentNo)}.*OVERVIEW",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase) }).First;
+
+            if (await pdfLink.IsVisibleAsync())
+            {
+                Directory.CreateDirectory(downloadPath);
+                LogStatus("[Step 6] Downloading PDF...");
+                var download = await _page.RunAndWaitForDownloadAsync(async () =>
+                {
+                    await pdfLink.ClickAsync();
+                });
+
+                var fileName = download.SuggestedFilename;
+                if (string.IsNullOrEmpty(fileName))
+                    fileName = $"{student.StudentNo}-01-01-OVERVIEW.PDF";
+
+                var savePath = Path.Combine(downloadPath, fileName);
+                await download.SaveAsAsync(savePath);
+                LogStatus($"[Step 6] PDF saved: {savePath}");
+            }
+            else
+            {
+                LogStatus("[Step 6] WARNING: Overview PDF link not found. Continuing...");
+            }
+
+            // Step 7: Click "Exit"
+            LogStatus("[Step 7] Clicking 'Exit'...");
+            var exitBtn = _page.Locator("input[value='Exit']").First;
+            if (!await exitBtn.IsVisibleAsync())
+                exitBtn = _page.Locator("button:has-text('Exit')").First;
+            if (!await exitBtn.IsVisibleAsync())
+                exitBtn = _page.Locator("a:has-text('Exit')").First;
+            await exitBtn.ScrollIntoViewIfNeededAsync();
+            await Task.Delay(300);
+            await exitBtn.ClickAsync();
+            await _page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 30000 });
+            await Task.Delay(500);
+            LogStatus("[Step 7] Exited record.");
+
+            // Step 8: Click "Search" to go back
+            LogStatus("[Step 8] Returning to search screen...");
+            var searchNav = _page.Locator("a").Filter(new() { HasText = "Search" }).First;
+            await searchNav.ClickAsync();
+            await _page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 30000 });
+            await Task.Delay(500);
+            LogStatus("[Step 8] Back on search screen.");
+
+            student.Status = ProcessingStatus.Success;
+            LogStatus($"=== SUCCESS: {student.StudentNo} ===");
+        }
+        catch (Exception ex)
+        {
+            student.Status = ProcessingStatus.Failed;
+            student.ErrorMessage = ex.Message;
+            LogStatus($"=== FAILED {student.StudentNo}: {ex.Message} ===");
+
+            // RECOVERY: Navigate back to search screen so the next student can be processed
+            try
+            {
+                LogStatus("Recovering — navigating back to search...");
+                await NavigateToUclSelectAsync();
+            }
+            catch
+            {
+                LogStatus("Recovery failed — browser may be in an unexpected state.");
+            }
+        }
+
+        StudentProcessed?.Invoke(this, student);
+    }
+
     public async Task CloseAsync()
     {
         LogStatus("Closing browser...");
@@ -458,6 +730,38 @@ public class PorticoAutomationService : IPorticoAutomationService
         _playwright?.Dispose(); 
         _playwright = null;
         _page = null;
+    }
+
+    /// <summary>
+    /// Waits for a page reload by polling a JS marker that gets cleared on navigation.
+    /// Call EvaluateAsync("() => window.__pw_marker = true") BEFORE the action that triggers reload.
+    /// </summary>
+    private async Task WaitForPageReloadAsync(int timeoutMs = 120000)
+    {
+        var pollMs = 1000;
+        var elapsed = 0;
+
+        while (elapsed < timeoutMs)
+        {
+            try
+            {
+                // If we can evaluate JS and the marker is gone, the page has fully reloaded
+                var markerExists = await _page!.EvaluateAsync<bool>("() => window.__pw_marker === true");
+                if (!markerExists)
+                {
+                    return;
+                }
+            }
+            catch
+            {
+                // JS evaluation failed — page is mid-navigation, keep polling
+            }
+
+            await Task.Delay(pollMs);
+            elapsed += pollMs;
+        }
+
+        throw new Exception($"Page did not reload within {timeoutMs / 1000} seconds.");
     }
 
     private void LogStatus(string message) => StatusUpdated?.Invoke(this, message);
