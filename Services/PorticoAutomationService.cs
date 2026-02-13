@@ -1,9 +1,9 @@
 // Services/PorticoAutomationService.cs
 
 using Microsoft.Playwright;
-using Playwrighter.Models;
+using Dossier.Models;
 
-namespace Playwrighter.Services;
+namespace Dossier.Services;
 
 public class PorticoAutomationService : IPorticoAutomationService
 {
@@ -51,7 +51,7 @@ public class PorticoAutomationService : IPorticoAutomationService
         if (string.IsNullOrEmpty(userDataDir))
         {
             var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            userDataDir = Path.Combine(appDataPath, "Playwrighter", "EdgeProfile");
+            userDataDir = Path.Combine(appDataPath, "Dossier", "EdgeProfile");
             Directory.CreateDirectory(userDataDir);
         }
 

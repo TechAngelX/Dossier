@@ -1,7 +1,7 @@
 <component name="libraryTable">
-  <library name="playwrighter">
+  <library name="dossier">
     <CLASSES>
-      <root url="jar://$PROJECT_DIR$/playwrighter.zip!/" />
+      <root url="jar://$PROJECT_DIR$/dossier.zip!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />

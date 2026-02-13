@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ============================================================
-# Playwrighter - Build to Desktop Script
+# Dossier - Build to Desktop Script
 # ============================================================
 # Builds a self-contained, single-file executable and copies
 # it to the user's Desktop folder (as .app bundle on macOS).
@@ -49,21 +49,21 @@ case "$OS" in
             echo -e "  ${GREEN}●${NC} Platform: ${CYAN}macOS Intel${NC}"
         fi
         DESKTOP="$HOME/Desktop"
-        OUTPUT_NAME="Playwrighter"
+        OUTPUT_NAME="Dossier"
         CREATE_APP_BUNDLE=true
         ;;
     Linux)
         RUNTIME="linux-x64"
         echo -e "  ${GREEN}●${NC} Platform: ${CYAN}Linux x64${NC}"
         DESKTOP="$HOME/Desktop"
-        OUTPUT_NAME="Playwrighter"
+        OUTPUT_NAME="Dossier"
         CREATE_APP_BUNDLE=false
         ;;
     MINGW*|MSYS*|CYGWIN*)
         RUNTIME="win-x64"
         echo -e "  ${GREEN}●${NC} Platform: ${CYAN}Windows x64${NC}"
         DESKTOP="$USERPROFILE/Desktop"
-        OUTPUT_NAME="Playwrighter.exe"
+        OUTPUT_NAME="Dossier.exe"
         CREATE_APP_BUNDLE=false
         ;;
     *)
@@ -111,7 +111,7 @@ echo -e "${BLUE}[4/4]${NC} Packaging for Desktop..."
 
 if [ "$CREATE_APP_BUNDLE" = true ]; then
     # Create macOS .app bundle
-    APP_NAME="Playwrighter.app"
+    APP_NAME="Dossier.app"
     APP_PATH="$DESKTOP/$APP_NAME"
 
     # Remove existing app bundle
@@ -122,12 +122,12 @@ if [ "$CREATE_APP_BUNDLE" = true ]; then
     mkdir -p "$APP_PATH/Contents/Resources"
 
     # Copy executable
-    cp "$PUBLISH_DIR/$OUTPUT_NAME" "$APP_PATH/Contents/MacOS/Playwrighter"
-    chmod +x "$APP_PATH/Contents/MacOS/Playwrighter"
+    cp "$PUBLISH_DIR/$OUTPUT_NAME" "$APP_PATH/Contents/MacOS/Dossier"
+    chmod +x "$APP_PATH/Contents/MacOS/Dossier"
 
     # Copy icon if exists
-    if [ -f "$SCRIPT_DIR/Assets/Playwrighter.icns" ]; then
-        cp "$SCRIPT_DIR/Assets/Playwrighter.icns" "$APP_PATH/Contents/Resources/AppIcon.icns"
+    if [ -f "$SCRIPT_DIR/Assets/Dossier.icns" ]; then
+        cp "$SCRIPT_DIR/Assets/Dossier.icns" "$APP_PATH/Contents/Resources/AppIcon.icns"
     fi
 
     # Create Info.plist
@@ -137,15 +137,15 @@ if [ "$CREATE_APP_BUNDLE" = true ]; then
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key>
-    <string>Playwrighter</string>
+    <string>Dossier</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
-    <string>com.techangelx.playwrighter</string>
+    <string>com.techangelx.dossier</string>
     <key>CFBundleName</key>
-    <string>Playwrighter</string>
+    <string>Dossier</string>
     <key>CFBundleDisplayName</key>
-    <string>Playwrighter</string>
+    <string>Dossier</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -195,7 +195,7 @@ echo ""
 if [ "$OS" = "Darwin" ]; then
     echo -e "  ${CYAN}Tip: If macOS shows 'cannot be opened' error:${NC}"
     echo -e "       Right-click → Open, or run:"
-    echo -e "       ${BLUE}xattr -cr ~/Desktop/Playwrighter.app${NC}"
+    echo -e "       ${BLUE}xattr -cr ~/Desktop/Dossier.app${NC}"
     echo ""
 fi
 

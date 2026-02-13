@@ -3,9 +3,9 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
-using Playwrighter.Models;
+using Dossier.Models;
 
-namespace Playwrighter;
+namespace Dossier;
 
 public partial class SettingsWindow : Window
 {

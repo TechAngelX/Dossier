@@ -1,6 +1,6 @@
 // Models/StudentRecord.cs
 
-namespace Playwrighter.Models;
+namespace Dossier.Models;
 
 public class StudentRecord
 {

@@ -1,8 +1,8 @@
 // Services/IPorticoAutomationService.cs
 
-using Playwrighter.Models;
+using Dossier.Models;
 
-namespace Playwrighter.Services;
+namespace Dossier.Services;
 
 public interface IPorticoAutomationService
 {

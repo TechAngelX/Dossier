@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace Playwrighter.Models;
+namespace Dossier.Models;
 
 public class ProcessingStudentViewModel : INotifyPropertyChanged
 {

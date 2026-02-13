@@ -1,6 +1,6 @@
 // Models/AppConfig.cs
 
-namespace Playwrighter.Models;
+namespace Dossier.Models;
 
 public class AppConfig
 {

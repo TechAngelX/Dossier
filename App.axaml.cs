@@ -5,7 +5,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using OfficeOpenXml;
 
-namespace Playwrighter;
+namespace Dossier;
 
 public partial class App : Application
 {

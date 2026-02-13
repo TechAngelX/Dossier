@@ -1,9 +1,9 @@
 // Services/ExcelService.cs
 
 using OfficeOpenXml;
-using Playwrighter.Models;
+using Dossier.Models;
 
-namespace Playwrighter.Services;
+namespace Dossier.Services;
 
 public class ExcelService : IExcelService
 {

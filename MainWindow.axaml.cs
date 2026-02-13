@@ -7,11 +7,11 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using Playwrighter.Models;
-using Playwrighter.Services;
+using Dossier.Models;
+using Dossier.Services;
 using System.Collections.ObjectModel;
 
-namespace Playwrighter;
+namespace Dossier;
 
 public partial class MainWindow : Window
 {
@@ -372,6 +372,10 @@ public partial class MainWindow : Window
         _browseButton.IsEnabled = false;
         _loadSheetButton.IsEnabled = false;
         
+        // Prevent the OS from sleeping during batch processing
+        using var sleepInhibitor = new SleepInhibitor();
+        sleepInhibitor.Activate();
+
         // 🚀 LAUNCH THE NEW UI
         var processingWindow = new Views.ProcessingWindow();
         processingWindow.Initialize(_students.ToList());

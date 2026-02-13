@@ -1,8 +1,8 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:Avalonia.Controls"
-        x:Class="Playwrighter.MainWindow"
-        Title="Playwrighter"
+        x:Class="Dossier.MainWindow"
+        Title="Dossier"
         Width="900" Height="750"
         WindowStartupLocation="CenterScreen"
         Background="Transparent"
@@ -34,7 +34,7 @@
             <Border Grid.Row="0" Background="Transparent" Padding="30,40,30,20">
                 <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Spacing="5">
-                        <TextBlock Text="Playwrighter" 
+                        <TextBlock Text="Dossier" 
                                    Foreground="#1E3A5F" 
                                    FontSize="32" 
                                    FontWeight="Bold"
@@ -53,7 +53,7 @@
                                 <GradientStop Color="#00C6FF" Offset="1"/>
                             </LinearGradientBrush>
                         </Border.Background>
-                        <TextBlock Text="P" Foreground="White" 
+                        <TextBlock Text="D" Foreground="White" 
                                    FontSize="28" FontWeight="Bold" 
                                    HorizontalAlignment="Center" 
                                    VerticalAlignment="Center"/>

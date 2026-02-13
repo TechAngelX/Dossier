@@ -3,13 +3,14 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
-using Playwrighter.Models;
+using Dossier.Models;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 
-namespace Playwrighter.Views;
+namespace Dossier.Views;
 
 public partial class ProcessingWindow : Window
 {
@@ -17,12 +18,14 @@ public partial class ProcessingWindow : Window
     private int _totalStudents;
     private int _processedCount;
     private System.Timers.Timer? _pulseTimer;
-    
+    private Stopwatch _elapsed = new();
+    private System.Timers.Timer? _clockTimer;
+
     public ProcessingWindow()
     {
         InitializeComponent();
         StudentsList.ItemsSource = _students;
-        
+
         CancelButton.Click += (s, e) => OnCancelRequested();
         CloseButton.Click += (s, e) => Close();
     }
@@ -50,9 +53,15 @@ public partial class ProcessingWindow : Window
             });
         }
         
+        _elapsed.Restart();
+        _clockTimer?.Stop();
+        _clockTimer = new System.Timers.Timer(1000);
+        _clockTimer.Elapsed += (s, e) => Dispatcher.UIThread.Post(UpdateFooterText);
+        _clockTimer.Start();
+
         UpdateProgress();
     }
-    
+
     public void UpdateStudentStatus(string studentNo, ProcessingStatus status, string? errorMessage = null)
     {
         Dispatcher.UIThread.Post(() =>
@@ -139,14 +148,18 @@ public partial class ProcessingWindow : Window
     
     public void ProcessingComplete()
     {
+        _clockTimer?.Stop();
+        _elapsed.Stop();
+
         Dispatcher.UIThread.Post(() =>
         {
             var successCount = _students.Count(s => s.StatusText == "Done");
             var failedCount = _students.Count(s => s.StatusText == "Failed");
-            
+            var time = FormatElapsed(_elapsed.Elapsed);
+
             SubtitleText.Text = $"Complete: {successCount} successful, {failedCount} failed";
-            FooterStatus.Text = "Processing complete!";
-            
+            FooterStatus.Text = $"Done in {time}  —  {successCount} successful, {failedCount} failed";
+
             CancelButton.IsVisible = false;
             CloseButton.IsVisible = true;
         });
@@ -157,6 +170,29 @@ public partial class ProcessingWindow : Window
         var percentage = _totalStudents > 0 ? (_processedCount * 100.0 / _totalStudents) : 0;
         ProgressBar.Value = percentage;
         ProgressText.Text = $"{_processedCount} / {_totalStudents} ({percentage:F0}%)";
+        UpdateFooterText();
+    }
+
+    private string FormatElapsed(TimeSpan ts)
+    {
+        return ts.TotalHours >= 1
+            ? $"{(int)ts.TotalHours}h {ts.Minutes:D2}m {ts.Seconds:D2}s"
+            : ts.TotalMinutes >= 1
+                ? $"{(int)ts.TotalMinutes}m {ts.Seconds:D2}s"
+                : $"{ts.Seconds}s";
+    }
+
+    private void UpdateFooterText()
+    {
+        var time = FormatElapsed(_elapsed.Elapsed);
+        var remaining = _totalStudents - _processedCount;
+
+        if (_processedCount > 0 && remaining > 0)
+            FooterStatus.Text = $"Processed {_processedCount} of {_totalStudents}  —  {remaining} remaining  —  {time}";
+        else if (_processedCount > 0 && remaining == 0)
+            FooterStatus.Text = $"All {_totalStudents} records processed  —  {time} total";
+        else
+            FooterStatus.Text = $"Starting...  —  {time}";
     }
     
     private void ScrollToCurrentStudent(string studentNo)

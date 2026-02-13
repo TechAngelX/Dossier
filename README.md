@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>Playwrighter</h1>
+  <h1>Dossier</h1>
   <p><strong>Automate UCL Portico admissions processing with Playwright browser automation</strong></p>
 
 <table> 
@@ -24,7 +24,7 @@
 
 ## About the Project
 
-**Playwrighter** is a cross-platform desktop application that automates repetitive admissions workflows in university student record systems. Instead of manually clicking through hundreds of student records, staff can load a spreadsheet and let the automation handle batch decision processing and document generation — reducing hours of manual work to minutes.
+**Dossier** is a cross-platform desktop application that automates repetitive admissions workflows in university student record systems. Instead of manually clicking through hundreds of student records, staff can load a spreadsheet and let the automation handle batch decision processing and document generation — reducing hours of manual work to minutes.
 
 
 The app utilises <a href="https://playwright.dev/">Playwright</a>, an open-source browser automation tool developed by Microsoft, to automate web browsers for testing, automation, and interaction with web applications—such as clicking buttons, filling forms, capturing screenshots, and navigating pages.
@@ -43,7 +43,7 @@ Additionally, academic reviewers who need to assess applicants must manually ope
 
 ### The Solution
 
-Playwrighter reads student data from an Excel or CSV file and automates the entire workflow using Microsoft Edge browser automation. It supports two core functions:
+Dossier reads student data from an Excel or CSV file and automates the entire workflow using Microsoft Edge browser automation. It supports two core functions:
 
 - **Batch Decision Processing** — Automatically processes Accept/Reject recommendations for hundreds of students, intelligently matching each to their correct programme application.
 - **Merge Overview** — Automatically generates and downloads a merged overview PDF for each student, combining all their application documents (personal statement, CV, transcripts, references, etc.) into a single file. The resulting batch folder can be handed directly to reviewers, eliminating the need to navigate the system record by record.
@@ -60,6 +60,8 @@ Playwrighter reads student data from an Excel or CSV file and automates the enti
 | **Merge Overview** | Generate and download merged overview PDFs for entire cohorts in a single batch |
 | **Persistent Login** | SSO session saved between runs — no repeated MFA |
 | **Real-time Status** | Live progress log with step-by-step visibility |
+| **Live Progress Counter** | Real-time "Processed X of Y — Z remaining" with elapsed timer |
+| **Sleep Prevention** | Automatically prevents OS sleep during batch runs — safe for overnight processing |
 | **Failure Recovery** | Automatically recovers and continues to the next student if a record fails |
 | **Cross-Platform** | Works on Windows, macOS, and Linux |
 | **Configurable** | Adjust delays, headless mode, and more |
@@ -79,8 +81,21 @@ The interface features a modern **glassmorphic design** inspired by contemporary
 
 ---
 
+### Enterprise Robustness
+
+Dossier is engineered for unattended, large-scale batch processing — designed to run reliably outside of business hours with zero manual intervention.
+
+- **OS Sleep Prevention** — The app automatically inhibits system sleep for the duration of a batch run (`caffeinate` on macOS, `SetThreadExecutionState` on Windows, `systemd-inhibit` on Linux). No need to adjust power settings manually; the machine stays awake until the job completes, then normal sleep behaviour resumes.
+- **Live Progress Tracking** — A persistent footer displays the running count (`Processed 47 of 131 — 84 remaining`), a continuously ticking elapsed timer, and a percentage progress bar. When the batch finishes, the footer shows total elapsed time and a success/failure breakdown.
+- **Automatic Failure Recovery** — If an individual record fails (timeout, missing data, unexpected page state), the app logs the error, navigates the browser back to a known-good state, and continues to the next student. One bad record does not halt the entire batch.
+- **Persistent SSO Sessions** — Browser context is persisted between runs, so MFA/SSO login only needs to happen once. Subsequent runs reuse the saved session for up to 60 days.
+
+These features allow staff to confidently run batches of 100+ records overnight without supervision.
+
+---
+
 Architecture
-Playwrighter follows the MVVM (Model-View-ViewModel) architectural pattern, providing clear separation of concerns for maintainability and testability.
+Dossier follows the MVVM (Model-View-ViewModel) architectural pattern, providing clear separation of concerns for maintainability and testability.
 
 Key Components:
 
@@ -92,7 +107,7 @@ Services — Business logic for Excel parsing, programme matching, and Playwrigh
 
 ## Architecture
 
-Playwrighter follows the **MVVM (Model-View-ViewModel)** architectural pattern, providing clear separation of concerns for maintainability and testability.
+Dossier follows the **MVVM (Model-View-ViewModel)** architectural pattern, providing clear separation of concerns for maintainability and testability.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -162,7 +177,7 @@ The app automatically converts spreadsheet short codes to Portico programme code
 ## Project Structure
 
 ```text
-playwrighter/
+dossier/
 ├── App.axaml                 # Application XAML
 ├── App.axaml.cs
 ├── MainWindow.axaml          # Main UI layout
@@ -176,11 +191,12 @@ playwrighter/
 ├── Services/
 │   ├── ExcelService.cs       # Excel parsing logic
 │   ├── PorticoAutomationService.cs  # Playwright automation
+│   ├── SleepInhibitor.cs     # Cross-platform OS sleep prevention
 │   └── Interfaces/
 ├── public/
 │   └── images/               # Screenshots and logo
-├── Playwrighter.csproj
-└── Playwrighter.sln
+├── Dossier.csproj
+└── Dossier.sln
 ```
 
 ---
@@ -194,7 +210,7 @@ playwrighter/
 ```powershell
 dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 ```
-Output: `bin/Release/net10.0/win-x64/publish/Playwrighter.exe`
+Output: `bin/Release/net10.0/win-x64/publish/Dossier.exe`
 
 ### macOS (.app)
 ```bash
@@ -204,7 +220,7 @@ dotnet publish -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=
 # Apple Silicon (M1/M2/M3)
 dotnet publish -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true
 ```
-Output: `bin/Release/net10.0/osx-x64/publish/Playwrighter` (or `osx-arm64`)
+Output: `bin/Release/net10.0/osx-x64/publish/Dossier` (or `osx-arm64`)
 
 ### Notes on File Size
 Self-contained builds include the .NET runtime (~100-150 MB). For smaller builds that require .NET to be installed on the target machine:
@@ -224,8 +240,8 @@ This produces a ~1 MB executable but requires .NET 10 Desktop Runtime on the tar
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/playwrighter.git
-cd playwrighter
+git clone https://github.com/YOUR_USERNAME/dossier.git
+cd dossier
 
 # Restore dependencies
 dotnet restore
@@ -304,7 +320,7 @@ Click the ⚙️ Settings button to configure:
 
 ```
 ┌──────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│  Excel / CSV     │────▶│  Playwrighter   │────▶│  Portico        │
+│  Excel / CSV     │────▶│  Dossier   │────▶│  Portico        │
 │  (Student Data)  │     │  (Automation)   │     │  (Browser)      │
 └──────────────────┘     └─────────────────┘     └─────────────────┘
                                │
