@@ -1,5 +1,9 @@
 <div align="center">
   <h1>Dossier</h1>
+ <tr>
+    <td><img src="./readme_images/dossier-vid.gif" alt="Main Interface" width="100"></td>
+
+  </tr>
   <p><strong>Automate UCL Portico admissions processing with Playwright browser automation</strong></p>
 
 <table> 
