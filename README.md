@@ -283,6 +283,9 @@ playwright install msedge
 # Build and run
 dotnet build
 dotnet run
+
+# Run tests
+dotnet test Dossier.Tests/
 ```
 
 ---
