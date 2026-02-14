@@ -4,12 +4,12 @@
 
 <table> 
   <tr>
-    <td><img src="./public/images/screenshot1.png" alt="Main Interface" width="400"></td>
-    <td><img src="./public/images/screenshot2.png" alt="Processing View" width="400"></td>
+    <td><img src="./readme_images/screenshot1.webp" alt="Main Interface" width="400"></td>
+    <td><img src="./readme_images/screenshot2.webp" alt="Processing View" width="400"></td>
   </tr>
   <tr>
-    <td><img src="./public/images/screenshot3.png" alt="Portico Automation" width="400"></td>
-    <td><img src="./public/images/screenshot4.png" alt="Results" width="400"></td>
+    <td><img src="./readme_images/screenshot3.webp" alt="Portico Automation" width="400"></td>
+    <td><img src="./readme_images/screenshot4.webp" alt="Results" width="400"></td>
   </tr>
 </table>
 
@@ -405,7 +405,7 @@ This tool is for authorised UCL staff use only. Ensure you have appropriate perm
 
 <div align="center">
   <a href="https://techangelx.com" target="_blank">
-    <img src="./public/images/logo.png" alt="Tech Angel X Logo" width="70" height="70" style="vertical-align: middle; border-radius: 50%; border: 4px solid #ffffff; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
+    <img src="./readme_images/logo.png" alt="Tech Angel X Logo" width="70" height="70" style="vertical-align: middle; border-radius: 50%; border: 4px solid #ffffff; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
   </a>
   <br /><br />
   <span style="font-size: 1.4em; font-weight: 300;">
