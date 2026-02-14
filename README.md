@@ -187,17 +187,47 @@ dossier/
 ├── Program.cs                # Entry point
 ├── Models/
 │   ├── StudentRecord.cs      # Student data model
-│   └── AppConfig.cs          # Configuration model
+│   ├── AppConfig.cs          # Configuration model
+│   └── ProcessingStudentViewModel.cs  # ViewModel for processing UI
 ├── Services/
 │   ├── ExcelService.cs       # Excel parsing logic
 │   ├── PorticoAutomationService.cs  # Playwright automation
 │   ├── SleepInhibitor.cs     # Cross-platform OS sleep prevention
 │   └── Interfaces/
+├── Dossier.Tests/
+│   ├── Models/
+│   │   ├── StudentRecordTests.cs
+│   │   ├── AppConfigTests.cs
+│   │   └── ProcessingStudentViewModelTests.cs
+│   ├── Services/
+│   │   ├── ExcelServiceCsvTests.cs
+│   │   └── ExcelServiceExcelTests.cs
+│   └── Dossier.Tests.csproj
 ├── public/
 │   └── images/               # Screenshots and logo
 ├── Dossier.csproj
 └── Dossier.sln
 ```
+
+---
+
+## Testing
+
+The project includes a comprehensive test suite built with **xUnit**, covering models and services.
+
+```bash
+dotnet test Dossier.Tests/
+```
+
+| Test File | Tests | What's Covered |
+|-----------|-------|----------------|
+| `StudentRecordTests` | 8 | Default values, `Name` computed property, enum values |
+| `AppConfigTests` | 6 | Default configuration values, property setters |
+| `ProcessingStudentViewModelTests` | 5 | Default state, `INotifyPropertyChanged` events, property updates |
+| `ExcelServiceCsvTests` | 19 | CSV parsing, tab/comma delimiter detection, fuzzy column matching, quoted fields (RFC 4180), edge cases |
+| `ExcelServiceExcelTests` | 8 | `.xlsx` parsing, sheet fallback, fuzzy headers, `GetSheetNames()` |
+
+**66 tests total** — all passing.
 
 ---
 
