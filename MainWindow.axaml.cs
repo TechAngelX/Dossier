@@ -428,13 +428,42 @@ public partial class MainWindow : Window
                 {
                     processingWindow.LogMessage("DEBUG MODE: Processing only FIRST student for merge overview");
                     var firstStudent = _students.First();
-                    await _automationService.ProcessStudentMergeOverviewAsync(firstStudent, downloadPath);
+
+                    // Check if PDF already exists for the debug student
+                    var debugExistingFiles = Directory.GetFiles(downloadPath, "*.pdf", SearchOption.TopDirectoryOnly)
+                        .Concat(Directory.GetFiles(downloadPath, "*.PDF", SearchOption.TopDirectoryOnly))
+                        .Select(f => Path.GetFileName(f))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    var debugAlreadyExists = debugExistingFiles.Any(f =>
+                        f.Contains(firstStudent.StudentNo, StringComparison.OrdinalIgnoreCase));
+
+                    if (debugAlreadyExists)
+                    {
+                        firstStudent.Status = ProcessingStatus.Skipped;
+                        processingWindow.LogMessage($"SKIPPED {firstStudent.StudentNo}: PDF already exists in LATEST_BATCH");
+                        processingWindow.UpdateStudentStatus(firstStudent.StudentNo, ProcessingStatus.Skipped);
+                    }
+                    else
+                    {
+                        await _automationService.ProcessStudentMergeOverviewAsync(firstStudent, downloadPath);
+                    }
+
                     processingWindow.LogMessage("DEBUG MODE COMPLETE: Browser paused for inspection.");
                     processingWindow.UpdateFooterStatus("Debug mode complete - browser paused");
                     processingWindow.ProcessingComplete();
                     RefreshStudentGrid();
                     return;
                 }
+
+                // Pre-scan: check which students already have PDFs in the folder
+                var existingFiles = Directory.GetFiles(downloadPath, "*.pdf", SearchOption.TopDirectoryOnly)
+                    .Concat(Directory.GetFiles(downloadPath, "*.PDF", SearchOption.TopDirectoryOnly))
+                    .Select(f => Path.GetFileName(f))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var skippedCount = 0;
 
                 foreach (var student in _students)
                 {
@@ -443,6 +472,20 @@ public partial class MainWindow : Window
                         processingWindow.LogMessage("Processing cancelled by user.");
                         processingWindow.UpdateFooterStatus("Cancelled");
                         break;
+                    }
+
+                    // Skip if a PDF containing this student number already exists
+                    var alreadyExists = existingFiles.Any(f =>
+                        f.Contains(student.StudentNo, StringComparison.OrdinalIgnoreCase));
+
+                    if (alreadyExists)
+                    {
+                        student.Status = ProcessingStatus.Skipped;
+                        skippedCount++;
+                        processingWindow.LogMessage($"SKIPPED {student.StudentNo}: PDF already exists in LATEST_BATCH");
+                        processingWindow.UpdateStudentStatus(student.StudentNo, ProcessingStatus.Skipped);
+                        RefreshStudentGrid();
+                        continue;
                     }
 
                     await _automationService.ProcessStudentMergeOverviewAsync(student, downloadPath);
@@ -539,7 +582,11 @@ public partial class MainWindow : Window
             
             var successCount = _students.Count(s => s.Status == ProcessingStatus.Success);
             var failedCount = _students.Count(s => s.Status == ProcessingStatus.Failed);
-            UpdateFooterStatus($"Complete: {successCount} successful, {failedCount} failed");
+            var skippedTotal = _students.Count(s => s.Status == ProcessingStatus.Skipped);
+            var footerMsg = skippedTotal > 0
+                ? $"Complete: {successCount} successful, {failedCount} failed, {skippedTotal} skipped"
+                : $"Complete: {successCount} successful, {failedCount} failed";
+            UpdateFooterStatus(footerMsg);
         }
     }
     private void ResetButton_Click(object? sender, RoutedEventArgs e)

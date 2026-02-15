@@ -93,6 +93,14 @@ public partial class ProcessingWindow : Window
                     StopPulseAnimation(studentNo);
                     _processedCount++;
                     break;
+
+                case ProcessingStatus.Skipped:
+                    student.StatusIcon = "⏭";
+                    student.StatusText = "Skipped";
+                    student.StatusColor = "#ED8936";
+                    StopPulseAnimation(studentNo);
+                    _processedCount++;
+                    break;
             }
             
             UpdateProgress();
@@ -155,10 +163,15 @@ public partial class ProcessingWindow : Window
         {
             var successCount = _students.Count(s => s.StatusText == "Done");
             var failedCount = _students.Count(s => s.StatusText == "Failed");
+            var skippedCount = _students.Count(s => s.StatusText == "Skipped");
             var time = FormatElapsed(_elapsed.Elapsed);
 
-            SubtitleText.Text = $"Complete: {successCount} successful, {failedCount} failed";
-            FooterStatus.Text = $"Done in {time}  —  {successCount} successful, {failedCount} failed";
+            var summary = skippedCount > 0
+                ? $"Complete: {successCount} successful, {failedCount} failed, {skippedCount} skipped"
+                : $"Complete: {successCount} successful, {failedCount} failed";
+
+            SubtitleText.Text = summary;
+            FooterStatus.Text = $"Done in {time}  —  {summary}";
 
             CancelButton.IsVisible = false;
             CloseButton.IsVisible = true;
