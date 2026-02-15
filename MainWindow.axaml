@@ -3,6 +3,7 @@
         xmlns:controls="using:Avalonia.Controls"
         x:Class="Dossier.MainWindow"
         Title="Dossier"
+        Icon="avares://Dossier/Assets/icon.png"
         Width="900" Height="750"
         WindowStartupLocation="CenterScreen"
         Background="Transparent"
@@ -164,6 +165,9 @@
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Student No" Binding="{Binding StudentNo}" Width="120"/>
                                     <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="200"/>
+                                    <DataGridTextColumn Header="Received" Binding="{Binding ReceivedDateDisplay}" Width="100"/>
+                                    <DataGridTextColumn Header="Due Date" Binding="{Binding DueDateDisplay}" Width="100"/>
+                                    <DataGridTextColumn Header="DOB" Binding="{Binding DateOfBirthDisplay}" Width="100"/>
                                     <DataGridTextColumn Header="Decision" Binding="{Binding Decision}" Width="120"/>
                                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
                                     <DataGridTextColumn Header="Notes" Binding="{Binding ErrorMessage}" Width="*"/>

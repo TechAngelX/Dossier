@@ -2,6 +2,7 @@
 
 using OfficeOpenXml;
 using Dossier.Models;
+using System.Globalization;
 
 namespace Dossier.Services;
 
@@ -35,7 +36,10 @@ public class ExcelService : IExcelService
         int forenameCol = -1;
         int surnameCol = -1;
         int programmeCol = -1;
-        
+        int receivedDateCol = -1;
+        int dueDateCol = -1;
+        int dobCol = -1;
+
         int headerRow = 1;
         int colCount = worksheet.Dimension?.Columns ?? 0;
         
@@ -69,6 +73,15 @@ public class ExcelService : IExcelService
 
             if (programmeCol == -1 && header == "programme")
                 programmeCol = col;
+
+            if (receivedDateCol == -1 && (header == "receiveddate" || header == "received date" || header == "received on" || header == "receivedon"))
+                receivedDateCol = col;
+
+            if (dueDateCol == -1 && (header == "duedate" || header == "due date"))
+                dueDateCol = col;
+
+            if (dobCol == -1 && (header == "dateofbirth" || header == "date of birth" || header == "dob" || header == "birthdate" || header == "birth date"))
+                dobCol = col;
         }
 
         for (int col = 1; col <= colCount; col++)
@@ -78,12 +91,16 @@ public class ExcelService : IExcelService
 
             if (studentNoCol == -1 && header.Contains("student") && header.Contains("no")) studentNoCol = col;
             if (decisionCol == -1 && header.Contains("decision")) decisionCol = col;
-            
+
             if (programmeCol == -1 && (header == "prog" || header == "progcode" || header == "prog code" || header == "progshort" || header == "route"))
                 programmeCol = col;
-            
+
             if (forenameCol == -1 && header.Contains("forename")) forenameCol = col;
             if (surnameCol == -1 && header.Contains("surname")) surnameCol = col;
+
+            if (receivedDateCol == -1 && header.Contains("received")) receivedDateCol = col;
+            if (dueDateCol == -1 && header.Contains("due") && header.Contains("date")) dueDateCol = col;
+            if (dobCol == -1 && (header.Contains("birth") || header == "dob")) dobCol = col;
         }
         
         Console.WriteLine($"=== Detected Columns ===");
@@ -137,6 +154,9 @@ public class ExcelService : IExcelService
                 Forename = forename,
                 Surname = surname,
                 Programme = programmeValue,
+                ReceivedDate = receivedDateCol > 0 ? ParseExcelDate(worksheet.Cells[row, receivedDateCol]) : null,
+                DueDate = dueDateCol > 0 ? ParseExcelDate(worksheet.Cells[row, dueDateCol]) : null,
+                DateOfBirth = dobCol > 0 ? ParseExcelDate(worksheet.Cells[row, dobCol]) : null,
                 Status = ProcessingStatus.Pending
             };
 
@@ -147,7 +167,7 @@ public class ExcelService : IExcelService
 
             students.Add(record);
         }
-        
+
         Console.WriteLine($"=== Total loaded: {students.Count} students ===");
         return students;
     }
@@ -175,6 +195,9 @@ public class ExcelService : IExcelService
         int forenameCol = -1;
         int surnameCol = -1;
         int programmeCol = -1;
+        int receivedDateCol = -1;
+        int dueDateCol = -1;
+        int dobCol = -1;
 
         // Pass 1: exact match
         for (int col = 0; col < headers.Length; col++)
@@ -199,6 +222,15 @@ public class ExcelService : IExcelService
 
             if (programmeCol == -1 && header == "programme")
                 programmeCol = col;
+
+            if (receivedDateCol == -1 && (header == "receiveddate" || header == "received date" || header == "received on" || header == "receivedon"))
+                receivedDateCol = col;
+
+            if (dueDateCol == -1 && (header == "duedate" || header == "due date"))
+                dueDateCol = col;
+
+            if (dobCol == -1 && (header == "dateofbirth" || header == "date of birth" || header == "dob" || header == "birthdate" || header == "birth date"))
+                dobCol = col;
         }
 
         // Pass 2: fuzzy match
@@ -215,6 +247,10 @@ public class ExcelService : IExcelService
 
             if (forenameCol == -1 && header.Contains("forename")) forenameCol = col;
             if (surnameCol == -1 && header.Contains("surname")) surnameCol = col;
+
+            if (receivedDateCol == -1 && header.Contains("received")) receivedDateCol = col;
+            if (dueDateCol == -1 && header.Contains("due") && header.Contains("date")) dueDateCol = col;
+            if (dobCol == -1 && (header.Contains("birth") || header == "dob")) dobCol = col;
         }
 
         Console.WriteLine($"=== Detected Columns ===");
@@ -271,6 +307,9 @@ public class ExcelService : IExcelService
                 Forename = forename,
                 Surname = surname,
                 Programme = programmeValue,
+                ReceivedDate = receivedDateCol >= 0 && receivedDateCol < fields.Length ? ParseDateString(fields[receivedDateCol].Trim()) : null,
+                DueDate = dueDateCol >= 0 && dueDateCol < fields.Length ? ParseDateString(fields[dueDateCol].Trim()) : null,
+                DateOfBirth = dobCol >= 0 && dobCol < fields.Length ? ParseDateString(fields[dobCol].Trim()) : null,
                 Status = ProcessingStatus.Pending
             };
 
@@ -284,6 +323,48 @@ public class ExcelService : IExcelService
 
         Console.WriteLine($"=== Total loaded: {students.Count} students ===");
         return students;
+    }
+
+    private static DateTime? ParseExcelDate(ExcelRange cell)
+    {
+        if (cell.Value == null) return null;
+
+        // EPPlus may return the value as a DateTime already
+        if (cell.Value is DateTime dt)
+            return dt;
+
+        // Excel stores dates as OLE Automation doubles
+        if (cell.Value is double d)
+        {
+            try { return DateTime.FromOADate(d); }
+            catch { return null; }
+        }
+
+        // Fallback: parse from string using UK-first formats
+        return ParseDateString(cell.Value.ToString()?.Trim() ?? "");
+    }
+
+    private static DateTime? ParseDateString(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+
+        // Try UK format first (dd/MM/yyyy), then common variants
+        string[] formats = {
+            "dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "d-M-yyyy",
+            "dd/MM/yyyy HH:mm:ss", "d/M/yyyy HH:mm:ss",
+            "yyyy-MM-dd", "yyyy-MM-dd HH:mm:ss",
+            "MM/dd/yyyy", "M/d/yyyy"
+        };
+
+        if (DateTime.TryParseExact(value, formats, CultureInfo.InvariantCulture,
+                DateTimeStyles.None, out var parsed))
+            return parsed;
+
+        // Last resort
+        if (DateTime.TryParse(value, new CultureInfo("en-GB"), DateTimeStyles.None, out var ukParsed))
+            return ukParsed;
+
+        return null;
     }
 
     private static string[] ParseCsvLine(string line, char delimiter)
