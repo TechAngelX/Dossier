@@ -62,6 +62,27 @@ public partial class ProcessingWindow : Window
         UpdateProgress();
     }
 
+    public void ReorderStudents(List<StudentRecord> sorted)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            _students.Clear();
+            foreach (var student in sorted)
+            {
+                _students.Add(new ProcessingStudentViewModel
+                {
+                    StudentNo = student.StudentNo,
+                    Forename = student.Forename,
+                    Surname = student.Surname,
+                    Decision = student.Decision,
+                    StatusIcon = student.Status == ProcessingStatus.Pending ? "\u23f3" : "\u2714",
+                    StatusText = student.Status == ProcessingStatus.Pending ? "Pending" : student.Status.ToString(),
+                    StatusColor = "#A0AEC0"
+                });
+            }
+        });
+    }
+
     public void UpdateStudentStatus(string studentNo, ProcessingStatus status, string? errorMessage = null)
     {
         Dispatcher.UIThread.Post(() =>

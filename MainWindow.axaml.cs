@@ -418,11 +418,20 @@ public partial class MainWindow : Window
             if (mergeOverview)
             {
                 // MERGE OVERVIEW MODE
+                // Sort students by student number (lowest to highest)
+                var sorted = _students.OrderBy(s => long.TryParse(s.StudentNo, out var n) ? n : long.MaxValue)
+                                      .ThenBy(s => s.StudentNo, StringComparer.Ordinal)
+                                      .ToList();
+                _students = new ObservableCollection<StudentRecord>(sorted);
+                _studentGrid.ItemsSource = _students;
+                processingWindow.ReorderStudents(sorted);
+
                 var downloadPath = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
                     "LATEST_BATCH");
                 Directory.CreateDirectory(downloadPath);
                 processingWindow.LogMessage($"Download path: {downloadPath}");
+                processingWindow.LogMessage($"Students sorted by student number (lowest → highest)");
 
                 if (debugMode)
                 {
