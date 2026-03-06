@@ -20,12 +20,12 @@ NC='\033[0m' # No Color
 echo -e "${CYAN}"
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║                                                              ║"
-echo "║     ██████╗ ██╗      █████╗ ██╗   ██╗██╗    ██╗██████╗      ║"
-echo "║     ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██║    ██║██╔══██╗     ║"
-echo "║     ██████╔╝██║     ███████║ ╚████╔╝ ██║ █╗ ██║██████╔╝     ║"
-echo "║     ██╔═══╝ ██║     ██╔══██║  ╚██╔╝  ██║███╗██║██╔══██╗     ║"
-echo "║     ██║     ███████╗██║  ██║   ██║   ╚███╔███╔╝██║  ██║     ║"
-echo "║     ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝    ╚══╝╚══╝ ╚═╝  ╚═╝     ║"
+echo "║     ██████╗  ██████╗ ███████╗███████╗██╗███████╗██████╗      ║"
+echo "║     ██╔══██╗██╔═══██╗██╔════╝██╔════╝██║██╔════╝██╔══██╗     ║"
+echo "║     ██║  ██║██║   ██║███████╗███████╗██║█████╗  ██████╔╝     ║"
+echo "║     ██║  ██║██║   ██║╚════██║╚════██║██║██╔══╝  ██╔══██╗     ║"
+echo "║     ██████╔╝╚██████╔╝███████║███████║██║███████╗██║  ██║     ║"
+echo "║     ╚═════╝  ╚═════╝ ╚══════╝╚══════╝╚═╝╚══════╝╚═╝  ╚═╝     ║"
 echo "║                                                              ║"
 echo "║                 Build to Desktop Script                      ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
@@ -87,9 +87,6 @@ dotnet restore --nologo -v q
 echo -e "${BLUE}[3/4]${NC} Building self-contained executable..."
 dotnet publish -c Release -r "$RUNTIME" \
     --self-contained true \
-    -p:PublishSingleFile=true \
-    -p:IncludeNativeLibrariesForSelfExtract=true \
-    -p:EnableCompressionInSingleFile=true \
     --nologo \
     -v q
 
@@ -121,8 +118,8 @@ if [ "$CREATE_APP_BUNDLE" = true ]; then
     mkdir -p "$APP_PATH/Contents/MacOS"
     mkdir -p "$APP_PATH/Contents/Resources"
 
-    # Copy executable
-    cp "$PUBLISH_DIR/$OUTPUT_NAME" "$APP_PATH/Contents/MacOS/Dossier"
+    # Copy entire publish directory (required for Playwright — single-file breaks native driver)
+    cp -r "$PUBLISH_DIR/." "$APP_PATH/Contents/MacOS/"
     chmod +x "$APP_PATH/Contents/MacOS/Dossier"
 
     # Copy icon if exists
