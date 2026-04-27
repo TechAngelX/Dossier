@@ -17,6 +17,7 @@ public partial class MainWindow : Window
 {
     private readonly IExcelService _excelService;
     private readonly IPorticoAutomationService _automationService;
+    private readonly IPdfRenameService _pdfRenameService;
     private readonly AppConfig _config;
     
     private string _currentFilePath = string.Empty;
@@ -48,6 +49,7 @@ public partial class MainWindow : Window
     private Button _settingsButton = null!;
     private Button _exitButton = null!;
     private Button _resetButton = null!;
+    private Button _pdfToolsButton = null!;
 
     public MainWindow()
     {
@@ -55,6 +57,7 @@ public partial class MainWindow : Window
         
         _excelService = new ExcelService();
         _automationService = new PorticoAutomationService();
+        _pdfRenameService = new PdfRenameService();
         _config = new AppConfig();
         
         SetupEventHandlers();
@@ -92,6 +95,7 @@ public partial class MainWindow : Window
         _settingsButton = this.FindControl<Button>("SettingsButton")!;
         _exitButton = this.FindControl<Button>("ExitButton")!;
         _resetButton = this.FindControl<Button>("ResetButton")!;
+        _pdfToolsButton = this.FindControl<Button>("PdfToolsButton")!;
     }
     
     
@@ -108,7 +112,8 @@ public partial class MainWindow : Window
         _processAcceptsCheckBox.IsCheckedChanged += FilterCheckBox_Changed;
         _processRejectsCheckBox.IsCheckedChanged += FilterCheckBox_Changed;
         _mergeOverviewCheckBox.IsCheckedChanged += FilterCheckBox_Changed;
-        _resetButton.Click += ResetButton_Click;  
+        _resetButton.Click += ResetButton_Click;
+        _pdfToolsButton.Click += PdfToolsButton_Click;
 
     }
     
@@ -363,7 +368,23 @@ public partial class MainWindow : Window
         
         var debugMode = _debugModeCheckBox.IsChecked ?? false;
         _automationService.DebugMode = debugMode;
-        
+
+        // For Merge Overview: ask for batch number BEFORE starting the browser.
+        // Downloads will land in ~/Desktop/{PROGRAMME}_LATEST/Batch N - MMM D - MMM D/
+        var mergeOverviewSelected = _mergeOverviewCheckBox.IsChecked ?? false;
+        string? batchDownloadPath = null;
+
+        if (mergeOverviewSelected)
+        {
+            var (_, batchFolderName) = await ShowBatchNumberDialog();
+            if (batchFolderName == null) return; // user cancelled
+
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            batchDownloadPath = Path.Combine(desktop, GetBatchFolderName(), batchFolderName);
+            Directory.CreateDirectory(batchDownloadPath);
+            LogStatus($"Batch folder: {batchDownloadPath}");
+        }
+
         _isProcessing = true;
         _cancellationTokenSource = new CancellationTokenSource();
         
@@ -426,10 +447,7 @@ public partial class MainWindow : Window
                 _studentGrid.ItemsSource = _students;
                 processingWindow.ReorderStudents(sorted);
 
-                var downloadPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-                    "LATEST_BATCH");
-                Directory.CreateDirectory(downloadPath);
+                var downloadPath = batchDownloadPath!;
                 processingWindow.LogMessage($"Download path: {downloadPath}");
                 processingWindow.LogMessage($"Students sorted by student number (lowest → highest)");
 
@@ -438,7 +456,6 @@ public partial class MainWindow : Window
                     processingWindow.LogMessage("DEBUG MODE: Processing only FIRST student for merge overview");
                     var firstStudent = _students.First();
 
-                    // Check if PDF already exists for the debug student
                     var debugExistingFiles = Directory.GetFiles(downloadPath, "*.pdf", SearchOption.TopDirectoryOnly)
                         .Concat(Directory.GetFiles(downloadPath, "*.PDF", SearchOption.TopDirectoryOnly))
                         .Select(f => Path.GetFileName(f))
@@ -450,12 +467,14 @@ public partial class MainWindow : Window
                     if (debugAlreadyExists)
                     {
                         firstStudent.Status = ProcessingStatus.Skipped;
-                        processingWindow.LogMessage($"SKIPPED {firstStudent.StudentNo}: PDF already exists in LATEST_BATCH");
+                        processingWindow.LogMessage($"SKIPPED {firstStudent.StudentNo}: PDF already exists");
                         processingWindow.UpdateStudentStatus(firstStudent.StudentNo, ProcessingStatus.Skipped);
                     }
                     else
                     {
                         await _automationService.ProcessStudentMergeOverviewAsync(firstStudent, downloadPath);
+                        if (firstStudent.Status == ProcessingStatus.Success)
+                            AutoRenameStudentPdf(firstStudent, downloadPath, processingWindow);
                     }
 
                     processingWindow.LogMessage("DEBUG MODE COMPLETE: Browser paused for inspection.");
@@ -491,13 +510,15 @@ public partial class MainWindow : Window
                     {
                         student.Status = ProcessingStatus.Skipped;
                         skippedCount++;
-                        processingWindow.LogMessage($"SKIPPED {student.StudentNo}: PDF already exists in LATEST_BATCH");
+                        processingWindow.LogMessage($"SKIPPED {student.StudentNo}: PDF already exists");
                         processingWindow.UpdateStudentStatus(student.StudentNo, ProcessingStatus.Skipped);
                         RefreshStudentGrid();
                         continue;
                     }
 
                     await _automationService.ProcessStudentMergeOverviewAsync(student, downloadPath);
+                    if (student.Status == ProcessingStatus.Success)
+                        AutoRenameStudentPdf(student, downloadPath, processingWindow);
                     RefreshStudentGrid();
                 }
             }
@@ -621,6 +642,162 @@ public partial class MainWindow : Window
         UpdateFooterStatus("Ready");
         LogStatus("Application reset - ready to load new file");
     }
+    private void PdfToolsButton_Click(object? sender, RoutedEventArgs e)
+    {
+        var downloadPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+            GetBatchFolderName());
+
+        var window = new Views.PdfToolsWindow(_students.ToList(), downloadPath);
+        window.Show();
+    }
+
+    // Prompts the user to enter a batch number before a Merge Overview run.
+    // Returns (batchNum, folderName) or (0, null) if cancelled.
+    private async Task<(int batchNum, string? folderName)> ShowBatchNumberDialog()
+    {
+        int resultNum = 0;
+        string? resultFolder = null;
+
+        var dialog = new Window
+        {
+            Title = "Merge Overview — Batch Setup",
+            Width = 480,
+            Height = 230,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false
+        };
+
+        var programmeFolderName = GetBatchFolderName();
+
+        var panel = new Avalonia.Controls.StackPanel { Margin = new Avalonia.Thickness(24), Spacing = 14 };
+
+        panel.Children.Add(new Avalonia.Controls.TextBlock
+        {
+            Text = $"Files will download to Desktop/{programmeFolderName}/Batch N - ...\nEnter the batch number for this run:",
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2D3748"))
+        });
+
+        var inputRow = new Avalonia.Controls.StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 12 };
+        inputRow.Children.Add(new Avalonia.Controls.TextBlock
+        {
+            Text = "Batch Number:",
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#4A5568"))
+        });
+        var numBox = new Avalonia.Controls.TextBox { Width = 90 };
+        inputRow.Children.Add(numBox);
+        panel.Children.Add(inputRow);
+
+        var previewText = new Avalonia.Controls.TextBlock
+        {
+            Text = "Folder: —",
+            Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#4F46E5")),
+            FontWeight = Avalonia.Media.FontWeight.SemiBold,
+            FontSize = 13
+        };
+        panel.Children.Add(previewText);
+
+        numBox.TextChanged += (s, e) =>
+        {
+            if (int.TryParse(numBox.Text, out int n) && n > 0)
+                previewText.Text = $"Folder: {programmeFolderName}/{ComputeBatchFolderName(n)}";
+            else
+                previewText.Text = "Folder: —";
+        };
+
+        var buttons = new Avalonia.Controls.StackPanel
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            Spacing = 10
+        };
+
+        var ok = new Avalonia.Controls.Button { Content = "Start Processing", Padding = new Avalonia.Thickness(16, 8) };
+        var cancel = new Avalonia.Controls.Button { Content = "Cancel", Padding = new Avalonia.Thickness(12, 8) };
+
+        ok.Click += (s, e) =>
+        {
+            if (int.TryParse(numBox.Text, out int n) && n > 0)
+            {
+                resultNum = n;
+                resultFolder = ComputeBatchFolderName(n);
+                dialog.Close();
+            }
+        };
+        cancel.Click += (s, e) => dialog.Close();
+
+        buttons.Children.Add(ok);
+        buttons.Children.Add(cancel);
+        panel.Children.Add(buttons);
+        dialog.Content = panel;
+
+        await dialog.ShowDialog(this);
+        return (resultNum, resultFolder);
+    }
+
+    // Computes "Batch N - MMM D - MMM D" from student ReceivedDates.
+    private string ComputeBatchFolderName(int batchNum)
+    {
+        var dates = _students
+            .Where(s => s.ReceivedDate.HasValue)
+            .Select(s => s.ReceivedDate!.Value.Date)
+            .ToList();
+
+        if (dates.Count == 0)
+            return $"Batch {batchNum}";
+
+        var start = dates.Min();
+        var end = dates.Max();
+        return start.Date == end.Date
+            ? $"Batch {batchNum} - {start:MMM d}"
+            : $"Batch {batchNum} - {start:MMM d} - {end:MMM d}";
+    }
+
+    // Returns e.g. "CSML_LATEST" or "DSML_LATEST" based on the loaded students' Programme codes.
+    // Falls back to "LATEST_BATCH" when there are zero or more than 3 distinct programmes.
+    private string GetBatchFolderName()
+    {
+        var programmes = _students
+            .Select(s => s.Programme?.Trim().ToUpperInvariant())
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Distinct()
+            .OrderBy(p => p)
+            .ToList();
+
+        if (programmes.Count == 0 || programmes.Count > 3)
+            return "LATEST_BATCH";
+
+        var safe = programmes.Select(p => new string(p!.Where(char.IsLetterOrDigit).ToArray()));
+        return string.Join("_", safe) + "_LATEST";
+    }
+
+    // Renames the downloaded OVERVIEW.PDF for this student in-place to the b7... format.
+    private void AutoRenameStudentPdf(StudentRecord student, string folderPath, Views.ProcessingWindow processingWindow)
+    {
+        try
+        {
+            var overviewFiles = Directory.GetFiles(folderPath, $"{student.StudentNo}-*.pdf", SearchOption.TopDirectoryOnly)
+                .Concat(Directory.GetFiles(folderPath, $"{student.StudentNo}-*.PDF", SearchOption.TopDirectoryOnly))
+                .ToList();
+
+            if (overviewFiles.Count == 0) return;
+
+            var originalPath = overviewFiles[0];
+            var newFilename = _pdfRenameService.GenerateNewFilename(student);
+            var newPath = Path.Combine(folderPath, newFilename);
+
+            if (File.Exists(newPath)) return;
+            File.Move(originalPath, newPath);
+            processingWindow.LogMessage($"Renamed: {Path.GetFileName(originalPath)} → {newFilename}");
+        }
+        catch (Exception ex)
+        {
+            processingWindow.LogMessage($"Auto-rename failed for {student.StudentNo}: {ex.Message}");
+        }
+    }
+
     private async void StopButton_Click(object? sender, RoutedEventArgs e)
     {
         _cancellationTokenSource?.Cancel();

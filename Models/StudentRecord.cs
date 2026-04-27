@@ -14,6 +14,12 @@ public class StudentRecord
     public DateTime? DateOfBirth { get; set; }
     public ProcessingStatus Status { get; set; } = ProcessingStatus.Pending;
     public string ErrorMessage { get; set; } = string.Empty;
+
+    // PDF rename fields (from PDFusion integration)
+    public string Batch { get; set; } = string.Empty;
+    public string FeeStatus { get; set; } = string.Empty;
+    public string UKGrade { get; set; } = string.Empty;
+    public string ApplicationQualityRank { get; set; } = string.Empty;
     public string Name => $"{Forename} {Surname}".Trim();
     public string ReceivedDateDisplay => ReceivedDate?.ToString("dd/MM/yyyy") ?? "";
     public string DueDateDisplay => DueDate?.ToString("dd/MM/yyyy") ?? "";

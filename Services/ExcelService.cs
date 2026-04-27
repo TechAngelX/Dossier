@@ -39,6 +39,10 @@ public class ExcelService : IExcelService
         int receivedDateCol = -1;
         int dueDateCol = -1;
         int dobCol = -1;
+        int batchCol = -1;
+        int feeStatusCol = -1;
+        int ukGradeCol = -1;
+        int qualityRankCol = -1;
 
         int headerRow = 1;
         int colCount = worksheet.Dimension?.Columns ?? 0;
@@ -82,6 +86,16 @@ public class ExcelService : IExcelService
 
             if (dobCol == -1 && (header == "dateofbirth" || header == "date of birth" || header == "dob" || header == "birthdate" || header == "birth date"))
                 dobCol = col;
+
+            if (batchCol == -1 && header == "batch")
+                batchCol = col;
+            if (feeStatusCol == -1 && (header == "feestatus" || header == "fee status" || header == "fee_status"))
+                feeStatusCol = col;
+            if (ukGradeCol == -1 && (header == "ukgrade" || header == "uk grade" || header == "uk_grade"))
+                ukGradeCol = col;
+            if (qualityRankCol == -1 && (header == "applicationqualityrank" || header == "application quality rank"
+                || header == "at note (ranking)" || header == "atnote(ranking)" || header == "at note ranking" || header == "ranking"))
+                qualityRankCol = col;
         }
 
         for (int col = 1; col <= colCount; col++)
@@ -101,6 +115,11 @@ public class ExcelService : IExcelService
             if (receivedDateCol == -1 && header.Contains("received")) receivedDateCol = col;
             if (dueDateCol == -1 && header.Contains("due") && header.Contains("date")) dueDateCol = col;
             if (dobCol == -1 && (header.Contains("birth") || header == "dob")) dobCol = col;
+
+            if (batchCol == -1 && header.Contains("batch")) batchCol = col;
+            if (feeStatusCol == -1 && header.Contains("fee") && header.Contains("status")) feeStatusCol = col;
+            if (ukGradeCol == -1 && header.Contains("uk") && header.Contains("grade")) ukGradeCol = col;
+            if (qualityRankCol == -1 && header.Contains("rank")) qualityRankCol = col;
         }
         
         Console.WriteLine($"=== Detected Columns ===");
@@ -157,7 +176,11 @@ public class ExcelService : IExcelService
                 ReceivedDate = receivedDateCol > 0 ? ParseExcelDate(worksheet.Cells[row, receivedDateCol]) : null,
                 DueDate = dueDateCol > 0 ? ParseExcelDate(worksheet.Cells[row, dueDateCol]) : null,
                 DateOfBirth = dobCol > 0 ? ParseExcelDate(worksheet.Cells[row, dobCol]) : null,
-                Status = ProcessingStatus.Pending
+                Status = ProcessingStatus.Pending,
+                Batch = batchCol > 0 ? worksheet.Cells[row, batchCol].Value?.ToString()?.Trim() ?? "" : "",
+                FeeStatus = feeStatusCol > 0 ? worksheet.Cells[row, feeStatusCol].Value?.ToString()?.Trim() ?? "" : "",
+                UKGrade = ukGradeCol > 0 ? worksheet.Cells[row, ukGradeCol].Value?.ToString()?.Trim() ?? "" : "",
+                ApplicationQualityRank = qualityRankCol > 0 ? worksheet.Cells[row, qualityRankCol].Value?.ToString()?.Trim() ?? "" : "",
             };
 
             if (students.Count < 5)
@@ -198,6 +221,10 @@ public class ExcelService : IExcelService
         int receivedDateCol = -1;
         int dueDateCol = -1;
         int dobCol = -1;
+        int batchCol = -1;
+        int feeStatusCol = -1;
+        int ukGradeCol = -1;
+        int qualityRankCol = -1;
 
         // Pass 1: exact match
         for (int col = 0; col < headers.Length; col++)
@@ -231,6 +258,16 @@ public class ExcelService : IExcelService
 
             if (dobCol == -1 && (header == "dateofbirth" || header == "date of birth" || header == "dob" || header == "birthdate" || header == "birth date"))
                 dobCol = col;
+
+            if (batchCol == -1 && header == "batch")
+                batchCol = col;
+            if (feeStatusCol == -1 && (header == "feestatus" || header == "fee status" || header == "fee_status"))
+                feeStatusCol = col;
+            if (ukGradeCol == -1 && (header == "ukgrade" || header == "uk grade" || header == "uk_grade"))
+                ukGradeCol = col;
+            if (qualityRankCol == -1 && (header == "applicationqualityrank" || header == "application quality rank"
+                || header == "at note (ranking)" || header == "atnote(ranking)" || header == "at note ranking" || header == "ranking"))
+                qualityRankCol = col;
         }
 
         // Pass 2: fuzzy match
@@ -251,6 +288,11 @@ public class ExcelService : IExcelService
             if (receivedDateCol == -1 && header.Contains("received")) receivedDateCol = col;
             if (dueDateCol == -1 && header.Contains("due") && header.Contains("date")) dueDateCol = col;
             if (dobCol == -1 && (header.Contains("birth") || header == "dob")) dobCol = col;
+
+            if (batchCol == -1 && header.Contains("batch")) batchCol = col;
+            if (feeStatusCol == -1 && header.Contains("fee") && header.Contains("status")) feeStatusCol = col;
+            if (ukGradeCol == -1 && header.Contains("uk") && header.Contains("grade")) ukGradeCol = col;
+            if (qualityRankCol == -1 && header.Contains("rank")) qualityRankCol = col;
         }
 
         Console.WriteLine($"=== Detected Columns ===");
@@ -310,7 +352,11 @@ public class ExcelService : IExcelService
                 ReceivedDate = receivedDateCol >= 0 && receivedDateCol < fields.Length ? ParseDateString(fields[receivedDateCol].Trim()) : null,
                 DueDate = dueDateCol >= 0 && dueDateCol < fields.Length ? ParseDateString(fields[dueDateCol].Trim()) : null,
                 DateOfBirth = dobCol >= 0 && dobCol < fields.Length ? ParseDateString(fields[dobCol].Trim()) : null,
-                Status = ProcessingStatus.Pending
+                Status = ProcessingStatus.Pending,
+                Batch = batchCol >= 0 && batchCol < fields.Length ? fields[batchCol].Trim() : "",
+                FeeStatus = feeStatusCol >= 0 && feeStatusCol < fields.Length ? fields[feeStatusCol].Trim() : "",
+                UKGrade = ukGradeCol >= 0 && ukGradeCol < fields.Length ? fields[ukGradeCol].Trim() : "",
+                ApplicationQualityRank = qualityRankCol >= 0 && qualityRankCol < fields.Length ? fields[qualityRankCol].Trim() : "",
             };
 
             if (students.Count < 5)

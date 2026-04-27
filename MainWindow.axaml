@@ -228,6 +228,19 @@
                                         CornerRadius="4"
                                         FontWeight="Medium"/>
                             </StackPanel>
+                            <Border BorderThickness="0,1,0,0" BorderBrush="#DEE2E6" Padding="0,12,0,0">
+                                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                    <TextBlock Text="PDF Tools:" VerticalAlignment="Center"
+                                               Foreground="#64748B" FontSize="13"/>
+                                    <Button x:Name="PdfToolsButton"
+                                            Content="📄 Rename &amp; Rank PDFs"
+                                            Padding="16,10"
+                                            Background="#8B5CF6"
+                                            Foreground="White"
+                                            CornerRadius="4"
+                                            FontWeight="Medium"/>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
 

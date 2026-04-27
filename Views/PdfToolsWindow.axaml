@@ -1,0 +1,230 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Dossier.Views.PdfToolsWindow"
+        Title="PDF File Tools"
+        Icon="avares://Dossier/Assets/icon.png"
+        Width="880" Height="740"
+        WindowStartupLocation="CenterScreen"
+        Background="Transparent"
+        TransparencyLevelHint="AcrylicBlur"
+        ExtendClientAreaToDecorationsHint="True">
+
+    <Window.Styles>
+        <Style Selector="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15"/>
+                </Transitions>
+            </Setter>
+        </Style>
+    </Window.Styles>
+
+    <Border Background="#F5F7FA" CornerRadius="12" Margin="1">
+        <Border.Effect>
+            <DropShadowEffect Color="#000000" Opacity="0.15" OffsetX="0" OffsetY="4" BlurRadius="20"/>
+        </Border.Effect>
+
+        <Grid RowDefinitions="Auto,*,Auto">
+
+            <!-- Header -->
+            <Border Grid.Row="0" Background="#1E3A5F" CornerRadius="12,12,0,0" Padding="30,20">
+                <StackPanel Spacing="5">
+                    <TextBlock Text="PDF File Tools"
+                               Foreground="White" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Rename overview PDFs using student spreadsheet data"
+                               Foreground="#87CEEB" FontSize="14"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Main Content -->
+            <ScrollViewer Grid.Row="1" Padding="30" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="18">
+
+                    <!-- Row: Spreadsheet + Folder side by side -->
+                    <Grid ColumnDefinitions="*,16,*">
+
+                        <!-- Spreadsheet Card -->
+                        <Border Grid.Column="0" Background="White" CornerRadius="8" Padding="18"
+                                BoxShadow="0 2 8 0 #10000000">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Student Spreadsheet"
+                                           FontWeight="SemiBold" FontSize="13" Foreground="#2D3748"/>
+                                <TextBlock x:Name="StudentsLoadedText"
+                                           Text="No spreadsheet loaded"
+                                           Foreground="#94A3B8" FontSize="12"
+                                           TextWrapping="Wrap"/>
+                                <Button x:Name="LoadSpreadsheetButton"
+                                        Content="📋 Load Spreadsheet"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Center"
+                                        Padding="0,9"
+                                        Background="#EEF2FF"
+                                        Foreground="#4F46E5"
+                                        CornerRadius="6"
+                                        FontWeight="Medium"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- PDF Folder Card -->
+                        <Border Grid.Column="2" Background="White" CornerRadius="8" Padding="18"
+                                BoxShadow="0 2 8 0 #10000000">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="PDF Folder"
+                                           FontWeight="SemiBold" FontSize="13" Foreground="#2D3748"/>
+                                <TextBlock x:Name="FolderPathText"
+                                           Foreground="#4A5568"
+                                           FontFamily="Consolas,Monaco,monospace"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock x:Name="PdfCountText"
+                                           Foreground="#718096" FontSize="12"/>
+                                <Button x:Name="ChangeFolderButton"
+                                        Content="📂 Change Folder"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Center"
+                                        Padding="0,9"
+                                        Background="#F0FDF4"
+                                        Foreground="#16A34A"
+                                        CornerRadius="6"
+                                        FontWeight="Medium"/>
+                            </StackPanel>
+                        </Border>
+
+                    </Grid>
+
+                    <!-- Action Buttons -->
+                    <WrapPanel Orientation="Horizontal">
+                        <Button x:Name="PreviewButton"
+                                Content="🔍 Preview"
+                                Padding="16,10" Margin="0,0,10,8"
+                                Background="#3B82F6" Foreground="White"
+                                CornerRadius="6" FontWeight="SemiBold"
+                                IsEnabled="False"/>
+                        <Button x:Name="RenameAllButton"
+                                Content="✅ Rename All"
+                                Padding="16,10" Margin="0,0,10,8"
+                                Background="#10B981" Foreground="White"
+                                CornerRadius="6" FontWeight="SemiBold"
+                                IsEnabled="False"/>
+                        <Button x:Name="UndoButton"
+                                Content="↩ Undo"
+                                Padding="16,10" Margin="0,0,10,8"
+                                Background="#F59E0B" Foreground="White"
+                                CornerRadius="6" FontWeight="SemiBold"
+                                IsEnabled="False"/>
+                        <Button x:Name="AppendRankingButton"
+                                Content="🏅 Append Ranking"
+                                Padding="16,10" Margin="0,0,10,8"
+                                Background="#8B5CF6" Foreground="White"
+                                CornerRadius="6" FontWeight="SemiBold"
+                                IsEnabled="False"/>
+                        <Button x:Name="OpenFolderButton"
+                                Content="🗂 Open Folder"
+                                Padding="16,10" Margin="0,0,0,8"
+                                Background="#64748B" Foreground="White"
+                                CornerRadius="6"/>
+                    </WrapPanel>
+
+                    <!-- Preview Grid -->
+                    <Border Background="White" CornerRadius="8" Padding="0"
+                            BoxShadow="0 2 8 0 #10000000" ClipToBounds="True">
+                        <StackPanel>
+                            <Border Background="#F8FAFC" Padding="18,12"
+                                    BorderThickness="0,0,0,1" BorderBrush="#E2E8F0">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="Rename Preview"
+                                               FontWeight="SemiBold" Foreground="#334155" FontSize="13"/>
+                                    <TextBlock x:Name="PreviewCountText"
+                                               Foreground="#64748B" FontSize="12"/>
+                                </Grid>
+                            </Border>
+                            <DataGrid x:Name="PreviewGrid"
+                                      Height="210"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="True"
+                                      GridLinesVisibility="Horizontal"
+                                      BorderThickness="0"
+                                      Background="White"
+                                      RowBackground="White"
+                                      HeadersVisibility="Column">
+                                <DataGrid.Styles>
+                                    <Style Selector="DataGridColumnHeader">
+                                        <Setter Property="Background" Value="White"/>
+                                        <Setter Property="Foreground" Value="#64748B"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Padding" Value="10"/>
+                                    </Style>
+                                </DataGrid.Styles>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Current Filename"
+                                                        Binding="{Binding CurrentFilename}"
+                                                        Width="*"/>
+                                    <DataGridTextColumn Header="New Filename"
+                                                        Binding="{Binding NewFilename}"
+                                                        Width="*"/>
+                                    <DataGridTemplateColumn Header="Status" Width="180">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Status}"
+                                                           Foreground="{Binding StatusColor}"
+                                                           VerticalAlignment="Center"
+                                                           Padding="10,0" FontSize="12"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Activity Log -->
+                    <Border Background="White" CornerRadius="8" Padding="18"
+                            BoxShadow="0 2 8 0 #10000000">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="Activity Log"
+                                       FontWeight="SemiBold" FontSize="13" Foreground="#2D3748"/>
+                            <TextBox x:Name="StatusLog"
+                                     Height="120"
+                                     IsReadOnly="True"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     Background="#F7FAFC"
+                                     BorderBrush="#E2E8F0"
+                                     Padding="12"
+                                     FontFamily="Consolas, Monaco, monospace"
+                                     FontSize="11"
+                                     Foreground="#4A5568"/>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Footer -->
+            <Border Grid.Row="2"
+                    Background="#F7FAFC"
+                    BorderThickness="0,1,0,0"
+                    BorderBrush="#E2E8F0"
+                    CornerRadius="0,0,12,12"
+                    Padding="30,16">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock x:Name="FooterStatus"
+                               Text="Load a spreadsheet and select a folder to begin."
+                               Foreground="#4A5568"
+                               VerticalAlignment="Center"
+                               FontSize="13"/>
+                    <Button x:Name="CloseButton"
+                            Grid.Column="1"
+                            Content="Close"
+                            Padding="20,10"
+                            Background="#4A5568"
+                            Foreground="White"
+                            CornerRadius="6"
+                            FontWeight="Medium"/>
+                </Grid>
+            </Border>
+
+        </Grid>
+    </Border>
+</Window>
