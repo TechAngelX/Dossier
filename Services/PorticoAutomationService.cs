@@ -45,7 +45,16 @@ public class PorticoAutomationService : IPorticoAutomationService
     {
         _config = config;
         LogStatus("Initialising Playwright...");
-        _playwright = await Playwright.CreateAsync();
+        try
+        {
+            _playwright = await Playwright.CreateAsync();
+        }
+        catch (Exception ex)
+        {
+            LogStatus($"ERROR — Playwright driver failed to start: {ex.GetType().Name}: {ex.Message}");
+            LogStatus("Check that Microsoft Edge is installed, or run: playwright install msedge");
+            throw;
+        }
 
         var userDataDir = config.EdgeUserDataDir;
         if (string.IsNullOrEmpty(userDataDir))
@@ -65,7 +74,18 @@ public class PorticoAutomationService : IPorticoAutomationService
             Args = new[] { "--start-maximized" }
         };
 
-        _context = await _playwright.Chromium.LaunchPersistentContextAsync(userDataDir, contextOptions);
+        LogStatus("Launching Microsoft Edge...");
+        try
+        {
+            _context = await _playwright.Chromium.LaunchPersistentContextAsync(userDataDir, contextOptions);
+        }
+        catch (Exception ex)
+        {
+            LogStatus($"ERROR — Edge failed to launch: {ex.GetType().Name}: {ex.Message}");
+            LogStatus("Ensure Microsoft Edge is installed at /Applications/Microsoft Edge.app");
+            throw;
+        }
+
         _page = _context.Pages.FirstOrDefault() ?? await _context.NewPageAsync();
         LogStatus("Browser initialised.");
     }

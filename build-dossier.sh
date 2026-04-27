@@ -84,13 +84,12 @@ echo -e "${BLUE}[2/4]${NC} Restoring dependencies..."
 dotnet restore --nologo -v q
 
 # Build and publish
-echo -e "${BLUE}[3/4]${NC} Building self-contained executable..."
+# Note: single-file publish is NOT used because Playwright's native driver
+# cannot reliably extract and execute itself from a bundled binary on macOS.
+# Directory publish keeps Playwright's native files alongside the assembly.
+echo -e "${BLUE}[3/4]${NC} Building self-contained app..."
 dotnet publish -c Release -r "$RUNTIME" \
     --self-contained true \
-    -p:PublishSingleFile=true \
-    -p:UseAppHost=true \
-    -p:IncludeNativeLibrariesForSelfExtract=true \
-    -p:EnableCompressionInSingleFile=true \
     --nologo \
     -v q
 
@@ -122,9 +121,23 @@ if [ "$CREATE_APP_BUNDLE" = true ]; then
     mkdir -p "$APP_PATH/Contents/MacOS"
     mkdir -p "$APP_PATH/Contents/Resources"
 
-    # Copy executable
-    cp "$PUBLISH_DIR/$OUTPUT_NAME" "$APP_PATH/Contents/MacOS/Dossier"
+    # Copy the entire publish directory so Playwright's native driver files
+    # land next to the assembly (required for Edge automation to work)
+    cp -r "$PUBLISH_DIR/." "$APP_PATH/Contents/MacOS/"
     chmod +x "$APP_PATH/Contents/MacOS/Dossier"
+
+    # Playwright's driver subprocess must be executable — dotnet publish does
+    # not set +x on native content files, so we fix that here.
+    find "$APP_PATH/Contents/MacOS" -type f \( \
+        -path "*/runtimes/*" -o \
+        -name "*.sh" -o \
+        -name "playwright" -o \
+        -name "ms-playwright*" \
+    \) -exec chmod +x {} \; 2>/dev/null || true
+
+    # Remove macOS quarantine from all bundle contents so Gatekeeper does
+    # not block the Playwright driver when it spawns as a subprocess.
+    xattr -cr "$APP_PATH" 2>/dev/null || true
 
     # Copy icon if exists
     if [ -f "$SCRIPT_DIR/Assets/Dossier.icns" ]; then

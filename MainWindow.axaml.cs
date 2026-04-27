@@ -644,12 +644,20 @@ public partial class MainWindow : Window
     }
     private void PdfToolsButton_Click(object? sender, RoutedEventArgs e)
     {
-        var downloadPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-            GetBatchFolderName());
+        try
+        {
+            var downloadPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                GetBatchFolderName());
 
-        var window = new Views.PdfToolsWindow(_students.ToList(), downloadPath);
-        window.Show();
+            var window = new Views.PdfToolsWindow(_students.ToList(), downloadPath);
+            window.Show();
+            window.Activate();
+        }
+        catch (Exception ex)
+        {
+            LogStatus($"PDF Tools failed to open: {ex.Message}");
+        }
     }
 
     // Prompts the user to enter a batch number before a Merge Overview run.
