@@ -88,6 +88,7 @@ echo -e "${BLUE}[3/4]${NC} Building self-contained executable..."
 dotnet publish -c Release -r "$RUNTIME" \
     --self-contained true \
     -p:PublishSingleFile=true \
+    -p:UseAppHost=true \
     -p:IncludeNativeLibrariesForSelfExtract=true \
     -p:EnableCompressionInSingleFile=true \
     --nologo \
