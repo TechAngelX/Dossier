@@ -4,5 +4,36 @@
              RequestedThemeVariant="Light">
     <Application.Styles>
         <FluentTheme />
+
+        <Style Selector="Border.GlassCard">
+            <Setter Property="Background" Value="#CCFFFFFF"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="BorderBrush" Value="#80FFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BoxShadow" Value="0 4 20 0 #15000000"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.2"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.GlassCard:pointerover">
+            <Setter Property="Background" Value="#EEFFFFFF"/>
+            <Setter Property="RenderTransform" Value="scale(1.01)"/>
+        </Style>
+        <Style Selector="Button.Modern">
+            <Setter Property="Background" Value="#2563EB"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.Modern:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#1D4ED8"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
     </Application.Styles>
 </Application>

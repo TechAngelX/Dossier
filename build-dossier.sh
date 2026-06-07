@@ -18,17 +18,17 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 echo -e "${CYAN}"
-echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║                                                              ║"
-echo "║     ██████╗ ██╗      █████╗ ██╗   ██╗██╗    ██╗██████╗      ║"
-echo "║     ██╔══██╗██║     ██╔══██╗╚██╗ ██╔╝██║    ██║██╔══██╗     ║"
-echo "║     ██████╔╝██║     ███████║ ╚████╔╝ ██║ █╗ ██║██████╔╝     ║"
-echo "║     ██╔═══╝ ██║     ██╔══██║  ╚██╔╝  ██║███╗██║██╔══██╗     ║"
-echo "║     ██║     ███████╗██║  ██║   ██║   ╚███╔███╔╝██║  ██║     ║"
-echo "║     ╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝    ╚══╝╚══╝ ╚═╝  ╚═╝     ║"
-echo "║                                                              ║"
-echo "║                 Build to Desktop Script                      ║"
-echo "╚══════════════════════════════════════════════════════════════╝"
+echo "╔════════════════════════════════════════════════════════════════╗"
+echo "║                                                                ║"
+echo "║  ██████╗  ██████╗ ███████╗███████╗██╗███████╗██████╗          ║"
+echo "║  ██╔══██╗██╔═══██╗██╔════╝██╔════╝██║██╔════╝██╔══██╗         ║"
+echo "║  ██║  ██║██║   ██║███████╗███████╗██║█████╗  ██████╔╝         ║"
+echo "║  ██║  ██║██║   ██║╚════██║╚════██║██║██╔══╝  ██╔══██╗         ║"
+echo "║  ██████╔╝╚██████╔╝███████║███████║██║███████╗██║  ██║         ║"
+echo "║  ╚═════╝  ╚═════╝ ╚══════╝╚══════╝╚═╝╚══════╝╚═╝  ╚═╝         ║"
+echo "║                                                                ║"
+echo "║                   Build to Desktop Script                      ║"
+echo "╚════════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
 # Detect the script's directory (project root)
@@ -175,6 +175,11 @@ if [ "$CREATE_APP_BUNDLE" = true ]; then
 </dict>
 </plist>
 PLIST
+
+    # Force Finder to pick up the new icon (clears icon cache)
+    touch "$APP_PATH"
+    /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister \
+        -f "$APP_PATH" 2>/dev/null || true
 
     # Get file size
     FILE_SIZE=$(du -sh "$APP_PATH" | cut -f1)

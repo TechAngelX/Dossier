@@ -18,5 +18,6 @@ public interface IPorticoAutomationService
     Task ProcessStudentAcceptAsync(StudentRecord student);
     Task ProcessStudentRejectAsync(StudentRecord student);
     Task ProcessStudentMergeOverviewAsync(StudentRecord student, string downloadPath);
+    Task<string> DownloadDepartmentReportAsync(string fullProgrammeName, string downloadDir);
     Task CloseAsync();
 }

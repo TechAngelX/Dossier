@@ -1,0 +1,168 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:views="clr-namespace:Dossier.Views"
+             mc:Ignorable="d"
+             x:Class="Dossier.Views.AdMergerView">
+
+    <Panel>
+        <Border IsHitTestVisible="False">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                    <GradientStop Color="#E0F2FE" Offset="0"/>
+                    <GradientStop Color="#F0F9FF" Offset="0.5"/>
+                    <GradientStop Color="#EEEBFF" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+        </Border>
+
+        <Grid RowDefinitions="Auto, Auto, Auto, *, Auto" Margin="30,20,30,20">
+
+            <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="ADMerger" FontSize="22" FontWeight="Bold" Foreground="#1E293B" LetterSpacing="-0.5"/>
+                        <TextBlock Text="Admissions Data Merge Engine" FontSize="11" Foreground="#64748B"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock x:Name="VersionLabel" Text="v1.0" FontSize="10" Foreground="#94A3B8"/>
+                            <TextBlock Text="(c) 2026 ZoopByte" FontSize="10" Foreground="#94A3B8"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+
+            <Grid Grid.Row="1" ColumnDefinitions="*, 20, *" Margin="0,0,0,20">
+
+                <Border x:Name="InTrayCard" Grid.Column="0" Classes="GlassCard" DragDrop.AllowDrop="True">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="📥" FontSize="16"/>
+                            <TextBlock Text="In-Tray File" FontWeight="SemiBold" Foreground="#334155"/>
+                        </StackPanel>
+                        <TextBlock Text="New applicants .csv / .xlsx" FontSize="11" Foreground="#94A3B8"/>
+                        <Button x:Name="BrowseInTrayButton" Classes="Modern" Content="Select File" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                        <TextBlock Text="or drag &amp; drop here" FontSize="10" Foreground="#CBD5E1" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="InTrayFileLabel" Text="No file selected" FontSize="11" Foreground="#64748B" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="ProgrammeCard" Grid.Column="2" Classes="GlassCard">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="🎓" FontSize="16"/>
+                            <TextBlock Text="Programme" FontWeight="SemiBold" Foreground="#334155"/>
+                        </StackPanel>
+                        <TextBlock Text="Short code — report auto-fetched from Portico" FontSize="11" Foreground="#94A3B8"/>
+                        <TextBox x:Name="ProgrammeCodeBox" Watermark="e.g. DSML" FontSize="13" MaxLength="12"/>
+                        <TextBlock x:Name="ProgrammeLookupLabel" Text="Enter a programme code above" FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Expander Grid.Row="2" Margin="0,0,0,15" Background="#EEF2FF" CornerRadius="8" Padding="5">
+                <Expander.Header>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="+" FontSize="14" FontWeight="Bold" Foreground="#6366F1"/>
+                        <TextBlock Text="Optional Output Fields" FontSize="12" Foreground="#6366F1" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Expander.Header>
+                <WrapPanel Margin="10,10,10,5" Orientation="Horizontal">
+                    <CheckBox x:Name="IncludeGenderCheckbox" Content="Gender" Margin="0,0,25,8" Foreground="#334155"/>
+                    <CheckBox x:Name="IncludeNationalityCheckbox" Content="Nationality" Margin="0,0,25,8" Foreground="#334155"/>
+                    <CheckBox x:Name="IncludeDOBCheckbox" Content="Date of Birth" Margin="0,0,25,8" Foreground="#334155"/>
+                    <CheckBox x:Name="IncludeEmailCheckbox" Content="Email" Margin="0,0,25,8" Foreground="#334155"/>
+                    <CheckBox x:Name="IncludePaidCheckbox" Content="Paid" Margin="0,0,25,8" Foreground="#334155"/>
+                </WrapPanel>
+            </Expander>
+
+            <Border Grid.Row="3" Classes="GlassCard" Padding="0" ClipToBounds="True">
+                <Grid RowDefinitions="Auto, *">
+
+                    <Border Grid.Row="0" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="15,10">
+                        <Grid ColumnDefinitions="110, 130, *, 150, 100">
+                            <TextBlock Grid.Column="0" Text="STATUS" FontWeight="SemiBold" FontSize="12" Foreground="#64748B"/>
+                            <TextBlock Grid.Column="1" Text="STUDENT NO" FontWeight="SemiBold" FontSize="12" Foreground="#64748B"/>
+                            <TextBlock Grid.Column="2" Text="APPLICANT NAME" FontWeight="SemiBold" FontSize="12" Foreground="#64748B"/>
+                            <TextBlock Grid.Column="3" Text="UK GRADE" FontWeight="SemiBold" FontSize="12" Foreground="#64748B"/>
+                            <TextBlock Grid.Column="4" Text="RECEIVED" FontWeight="SemiBold" FontSize="12" Foreground="#64748B"/>
+                        </Grid>
+                    </Border>
+
+                    <ListBox x:Name="ProcessingList" Grid.Row="1" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="views:ProcessingItem">
+                                <Grid ColumnDefinitions="110, 130, *, 150, 100" Margin="0,4">
+                                    <Border Grid.Column="0" CornerRadius="10" Padding="8,2" HorizontalAlignment="Left"
+                                            Background="{Binding StatusColor}">
+                                        <TextBlock Text="{Binding Status}" FontSize="11" FontWeight="SemiBold"
+                                                 Foreground="{Binding StatusForeColor}" HorizontalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="{Binding StudentNo}" VerticalAlignment="Center" Foreground="#334155" FontFamily="Consolas, Monospace"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Name}" VerticalAlignment="Center" FontWeight="Medium" Foreground="#1E293B"/>
+                                    <Border Grid.Column="3" CornerRadius="10" Padding="8,2" HorizontalAlignment="Left"
+                                            Background="{Binding GradeColor}">
+                                        <TextBlock Text="{Binding UkGrade}" FontSize="11"
+                                                   Foreground="{Binding GradeForeColor}"
+                                                   FontWeight="{Binding GradeWeight}"
+                                                   HorizontalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Grid.Column="4" Text="{Binding ReceivedDate}" VerticalAlignment="Center" Foreground="#64748B" FontSize="12"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                        <ListBox.Styles>
+                            <Style Selector="ListBoxItem">
+                                <Setter Property="Padding" Value="15,8"/>
+                                <Setter Property="BorderBrush" Value="#F1F5F9"/>
+                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                            </Style>
+                            <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                                <Setter Property="Background" Value="#F0F9FF"/>
+                            </Style>
+                        </ListBox.Styles>
+                    </ListBox>
+
+                    <StackPanel x:Name="EmptyStatePanel" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10">
+                        <TextBlock Text="Waiting for data..." Foreground="#94A3B8" FontSize="16" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Load files above to populate the list" Foreground="#CBD5E1" FontSize="13" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Row="4" Margin="0,15,0,0" Spacing="12">
+
+                <Grid ColumnDefinitions="*, Auto">
+                    <TextBlock x:Name="StatusLabel" Text="Ready to start" VerticalAlignment="Center" Foreground="#64748B" FontWeight="Medium"/>
+                    <TextBlock x:Name="FooterStatus" Grid.Column="1" Text="0/0 Records" VerticalAlignment="Center" Foreground="#94A3B8"/>
+                </Grid>
+
+                <ProgressBar x:Name="MainProgressBar" Height="6" CornerRadius="3"
+                             Foreground="#2563EB" Background="#E2E8F0" Value="0"/>
+
+                <Grid ColumnDefinitions="*, 20, Auto, 10, Auto">
+                    <Button x:Name="ProcessButton" Grid.Column="0" Classes="Modern"
+                            Content="▶  Process Records" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                            Background="#10B981" IsEnabled="False"/>
+                    <Button x:Name="ResetButton" Grid.Column="2" Classes="Modern"
+                            Content="↺ Reset" Background="#64748B"/>
+                    <Button x:Name="ExitButton" Grid.Column="4" Classes="Modern"
+                            Content="✕ Exit" Background="#EF4444"/>
+                </Grid>
+            </StackPanel>
+
+            <Expander Grid.Row="3" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="20" Background="#EEF2FF" CornerRadius="8">
+                <Expander.Header>
+                    <TextBlock Text="System Log" FontSize="12" Foreground="#6366F1"/>
+                </Expander.Header>
+                <Grid RowDefinitions="Auto, 150">
+                    <Button x:Name="ClearLogButton" Content="Clear" FontSize="10" HorizontalAlignment="Right" Margin="0,0,10,0"/>
+                    <TextBox x:Name="StatusLog" Grid.Row="1" IsReadOnly="True"
+                             Background="White" BorderThickness="0"
+                             FontFamily="Consolas" FontSize="11"/>
+                </Grid>
+            </Expander>
+
+        </Grid>
+    </Panel>
+</UserControl>

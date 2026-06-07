@@ -1,15 +1,16 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:Avalonia.Controls"
+        xmlns:views="clr-namespace:Dossier.Views"
         x:Class="Dossier.MainWindow"
         Title="Dossier"
         Icon="avares://Dossier/Assets/icon.png"
-        Width="900" Height="750"
+        Width="960" Height="780"
         WindowStartupLocation="CenterScreen"
         Background="Transparent"
         TransparencyLevelHint="AcrylicBlur"
         ExtendClientAreaToDecorationsHint="True">
-    
+
     <Window.Styles>
         <Style Selector="Button">
             <Setter Property="Cursor" Value="Hand"/>
@@ -23,6 +24,15 @@
         <Style Selector="Button:pointerover /template/ ContentPresenter">
             <Setter Property="RenderTransform" Value="scale(1.02)"/>
         </Style>
+        <Style Selector="TabItem">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="Foreground" Value="#64748B"/>
+        </Style>
+        <Style Selector="TabItem:selected">
+            <Setter Property="Foreground" Value="#1E3A5F"/>
+        </Style>
     </Window.Styles>
 
     <Border Background="#CCFFFFFF" CornerRadius="10" Margin="10">
@@ -31,259 +41,267 @@
         </Border.Effect>
 
         <Grid RowDefinitions="Auto,*,Auto">
-            
-            <Border Grid.Row="0" Background="Transparent" Padding="30,40,30,20">
+
+            <!-- Header -->
+            <Border Grid.Row="0" Background="Transparent" Padding="30,30,30,10">
                 <Grid ColumnDefinitions="*,Auto">
-                    <StackPanel Spacing="5">
-                        <TextBlock Text="Dossier" 
-                                   Foreground="#1E3A5F" 
-                                   FontSize="32" 
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Dossier"
+                                   Foreground="#1E3A5F"
+                                   FontSize="28"
                                    FontWeight="Bold"
                                    LetterSpacing="-0.5"/>
-                        <TextBlock Text="Automated UCL Admissions Processing" 
-                                   Foreground="#64748B" 
-                                   FontSize="16"/>
+                        <TextBlock Text="Automated UCL Admissions Processing"
+                                   Foreground="#64748B"
+                                   FontSize="14"/>
                     </StackPanel>
-                    
-                    <Border Grid.Column="1" 
-                            Width="50" Height="50" 
-                            CornerRadius="12">
+
+                    <Border Grid.Column="1" Width="46" Height="46" CornerRadius="12">
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
                                 <GradientStop Color="#007BFF" Offset="0"/>
                                 <GradientStop Color="#00C6FF" Offset="1"/>
                             </LinearGradientBrush>
                         </Border.Background>
-                        <TextBlock Text="D" Foreground="White" 
-                                   FontSize="28" FontWeight="Bold" 
-                                   HorizontalAlignment="Center" 
+                        <TextBlock Text="D" Foreground="White"
+                                   FontSize="26" FontWeight="Bold"
+                                   HorizontalAlignment="Center"
                                    VerticalAlignment="Center"/>
                     </Border>
                 </Grid>
             </Border>
-            
-            <ScrollViewer Grid.Row="1" Padding="30,0,30,20">
-                <StackPanel Spacing="25">
-                    
-                    <Border x:Name="DropZone"
-                            Background="White"
-                            BorderBrush="#E2E8F0"
-                            BorderThickness="1"
-                            CornerRadius="12"
-                            Padding="40"
-                            DragDrop.AllowDrop="True"
-                            BoxShadow="0 4 15 0 #0D000000">
-                        <StackPanel HorizontalAlignment="Center" Spacing="15">
-                            <Border Background="#F1F5F9" CornerRadius="50" Width="80" Height="80">
-                                <TextBlock Text="📂" FontSize="40" 
-                                           HorizontalAlignment="Center" 
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,0,4"/>
-                            </Border>
-                            
-                            <StackPanel Spacing="5">
-                                <TextBlock x:Name="DropZoneText"
-                                           Text="Drag &amp; Drop Excel or CSV File"
-                                           FontSize="18"
-                                           FontWeight="SemiBold"
-                                           Foreground="#1E293B"
-                                           HorizontalAlignment="Center"/>
-                                <TextBlock Text="or click to browse local files"
-                                           Foreground="#94A3B8"
-                                           HorizontalAlignment="Center"/>
-                            </StackPanel>
-                            
-                            <Button x:Name="BrowseButton"
-                                    Content="Select File"
-                                    HorizontalAlignment="Center"
-                                    Padding="25,10"
-                                    Background="#3B82F6"
-                                    Foreground="White"
-                                    CornerRadius="20"
-                                    FontWeight="SemiBold"
-                                    Margin="0,10,0,0"/>
-                        </StackPanel>
-                    </Border>
-                    
-                    <Border x:Name="SheetSelectionPanel"
-                            Background="White"
-                            CornerRadius="12"
-                            Padding="20"
-                            BoxShadow="0 2 10 0 #0A000000"
-                            IsVisible="False">
-                        <Grid ColumnDefinitions="Auto,*,Auto">
-                            <TextBlock Text="Worksheet:" 
-                                       VerticalAlignment="Center" 
-                                       FontWeight="Medium" 
-                                       Margin="0,0,15,0"/>
-                            <ComboBox x:Name="SheetComboBox" 
-                                      Grid.Column="1"
-                                      HorizontalAlignment="Stretch" 
-                                      CornerRadius="6"/>
-                            <Button x:Name="LoadSheetButton"
-                                    Grid.Column="2"
-                                    Content="Load Data"
-                                    Margin="15,0,0,0"
-                                    Background="#10B981"
-                                    Foreground="White"
-                                    CornerRadius="6"/>
-                        </Grid>
-                    </Border>
-                    
-                    <Border x:Name="StudentListPanel"
-                            Background="White"
-                            CornerRadius="12"
-                            Padding="0"
-                            BoxShadow="0 4 15 0 #0D000000"
-                            IsVisible="False"
-                            ClipToBounds="True">
-                        <StackPanel>
-                            <Border Background="#F8FAFC" Padding="20,15" BorderThickness="0,0,0,1" BorderBrush="#E2E8F0">
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Text="Student Queue" FontWeight="SemiBold" Foreground="#334155"/>
-                                    <TextBlock x:Name="StudentCountText" Foreground="#64748B" FontSize="13"/>
-                                </Grid>
-                            </Border>
-                            
-                            <DataGrid x:Name="StudentGrid"
-                                      Height="220"
-                                      AutoGenerateColumns="False"
-                                      IsReadOnly="True"
-                                      GridLinesVisibility="Horizontal"
-                                      BorderThickness="0"
-                                      Background="White"
-                                      RowBackground="White"
-                                      HeadersVisibility="Column">
-                                <DataGrid.Styles>
-                                    <Style Selector="DataGridColumnHeader">
-                                        <Setter Property="Background" Value="White"/>
-                                        <Setter Property="Foreground" Value="#64748B"/>
-                                        <Setter Property="FontWeight" Value="SemiBold"/>
-                                        <Setter Property="Padding" Value="10"/>
-                                    </Style>
-                                </DataGrid.Styles>
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Student No" Binding="{Binding StudentNo}" Width="120"/>
-                                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="200"/>
-                                    <DataGridTextColumn Header="Received" Binding="{Binding ReceivedDateDisplay}" Width="100"/>
-                                    <DataGridTextColumn Header="Due Date" Binding="{Binding DueDateDisplay}" Width="100"/>
-                                    <DataGridTextColumn Header="DOB" Binding="{Binding DateOfBirthDisplay}" Width="100"/>
-                                    <DataGridTextColumn Header="Decision" Binding="{Binding Decision}" Width="120"/>
-                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
-                                    <DataGridTextColumn Header="Notes" Binding="{Binding ErrorMessage}" Width="*"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </StackPanel>
-                    </Border>
-                    
-                    <!-- Action Buttons -->
-                    <Border x:Name="ActionPanel"
-                            Background="#F8F9FA"
-                            CornerRadius="8"
-                            Padding="15"
-                            IsVisible="False">
-                        <StackPanel Spacing="15">
-                            <TextBlock Text="Processing Options:" FontWeight="SemiBold"/>
-                            <WrapPanel Orientation="Horizontal">
-                                <RadioButton x:Name="ProcessRejectsCheckBox"
-                                          Content="Process Rejects"
-                                          IsChecked="True"
-                                          Margin="0,0,20,0"
-                                          GroupName="ProcessingMode"/>
-                                <RadioButton x:Name="ProcessAcceptsCheckBox"
-                                          Content="Process Accepts"
-                                          IsChecked="False"
-                                          Margin="0,0,20,0"
-                                          GroupName="ProcessingMode"/>
-                                <RadioButton x:Name="MergeOverviewCheckBox"
-                                          Content="Merge Overview"
-                                          IsChecked="False"
-                                          GroupName="ProcessingMode"/>
-                            </WrapPanel>
-                            <CheckBox x:Name="DebugModeCheckBox" 
-                                      Content="🐛 Debug Mode (Process 1 record and PAUSE before clicking Process)"
-                                      Foreground="#DC3545"
-                                      FontWeight="SemiBold"
-                                      Margin="0,5,0,0"/>
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <Button x:Name="StartButton"
-                                        Content="Start Processing"
-                                        Padding="20,12"
-                                        Background="#007BFF"
-                                        Foreground="White"
-                                        CornerRadius="4"
-                                        FontWeight="SemiBold"/>
-                                <Button x:Name="StopButton"
-                                        Content="Stop"
-                                        Padding="20,12"
-                                        Background="#DC3545"
-                                        Foreground="White"
-                                        CornerRadius="4"
-                                        IsEnabled="False"/>
-                                <Button x:Name="ResetButton"
-                                        Content="🔄 Reset"
-                                        Padding="20,12"
-                                        Background="#6C757D"
-                                        Foreground="White"
-                                        CornerRadius="4"
-                                        FontWeight="Medium"/>
-                            </StackPanel>
-                            <Border BorderThickness="0,1,0,0" BorderBrush="#DEE2E6" Padding="0,12,0,0">
-                                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                                    <TextBlock Text="PDF Tools:" VerticalAlignment="Center"
-                                               Foreground="#64748B" FontSize="13"/>
-                                    <Button x:Name="PdfToolsButton"
-                                            Content="📄 Rename &amp; Rank PDFs"
-                                            Padding="16,10"
-                                            Background="#8B5CF6"
+
+            <!-- Tab content -->
+            <TabControl Grid.Row="1" Margin="0,0,0,0" Background="Transparent" BorderThickness="0">
+
+                <!-- Tab 1: ADMerger -->
+                <TabItem Header="📋  ADMerger">
+                    <views:AdMergerView />
+                </TabItem>
+
+                <!-- Tab 2: Portico Automation (original Dossier feature) -->
+                <TabItem Header="🌐  Portico">
+                    <ScrollViewer Padding="30,10,30,20">
+                        <StackPanel Spacing="20">
+
+                            <Border x:Name="DropZone"
+                                    Background="White"
+                                    BorderBrush="#E2E8F0"
+                                    BorderThickness="1"
+                                    CornerRadius="12"
+                                    Padding="40"
+                                    DragDrop.AllowDrop="True"
+                                    BoxShadow="0 4 15 0 #0D000000">
+                                <StackPanel HorizontalAlignment="Center" Spacing="15">
+                                    <Border Background="#F1F5F9" CornerRadius="50" Width="80" Height="80">
+                                        <TextBlock Text="📂" FontSize="40"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,0,4"/>
+                                    </Border>
+                                    <StackPanel Spacing="5">
+                                        <TextBlock x:Name="DropZoneText"
+                                                   Text="Drag &amp; Drop Excel or CSV File"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#1E293B"
+                                                   HorizontalAlignment="Center"/>
+                                        <TextBlock Text="or click to browse local files"
+                                                   Foreground="#94A3B8"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                    <Button x:Name="BrowseButton"
+                                            Content="Select File"
+                                            HorizontalAlignment="Center"
+                                            Padding="25,10"
+                                            Background="#3B82F6"
                                             Foreground="White"
-                                            CornerRadius="4"
-                                            FontWeight="Medium"/>
+                                            CornerRadius="20"
+                                            FontWeight="SemiBold"
+                                            Margin="0,10,0,0"/>
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
-                    </Border>
 
-                    <Border Background="#1E293B" CornerRadius="12" Padding="0" ClipToBounds="True">
-                        <StackPanel>
-                            <Border Background="#0F172A" Padding="15,10">
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Text="System Log" Foreground="#94A3B8" FontSize="12" FontWeight="Bold"/>
-                                    <Button x:Name="ClearLogButton" Content="Clear" 
-                                            Background="Transparent" Foreground="#64748B" 
-                                            BorderThickness="0" FontSize="11" Padding="5,0"/>
+                            <Border x:Name="SheetSelectionPanel"
+                                    Background="White"
+                                    CornerRadius="12"
+                                    Padding="20"
+                                    BoxShadow="0 2 10 0 #0A000000"
+                                    IsVisible="False">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <TextBlock Text="Worksheet:"
+                                               VerticalAlignment="Center"
+                                               FontWeight="Medium"
+                                               Margin="0,0,15,0"/>
+                                    <ComboBox x:Name="SheetComboBox"
+                                              Grid.Column="1"
+                                              HorizontalAlignment="Stretch"
+                                              CornerRadius="6"/>
+                                    <Button x:Name="LoadSheetButton"
+                                            Grid.Column="2"
+                                            Content="Load Data"
+                                            Margin="15,0,0,0"
+                                            Background="#10B981"
+                                            Foreground="White"
+                                            CornerRadius="6"/>
                                 </Grid>
                             </Border>
-                            <TextBox x:Name="StatusLog"
-                                     Height="120"
-                                     Background="Transparent"
-                                     Foreground="#00FF9C"
-                                     BorderThickness="0"
-                                     IsReadOnly="True"
-                                     FontFamily="Consolas, Monaco, monospace"
-                                     FontSize="12"
-                                     Padding="15"/>
+
+                            <Border x:Name="StudentListPanel"
+                                    Background="White"
+                                    CornerRadius="12"
+                                    Padding="0"
+                                    BoxShadow="0 4 15 0 #0D000000"
+                                    IsVisible="False"
+                                    ClipToBounds="True">
+                                <StackPanel>
+                                    <Border Background="#F8FAFC" Padding="20,15" BorderThickness="0,0,0,1" BorderBrush="#E2E8F0">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="Student Queue" FontWeight="SemiBold" Foreground="#334155"/>
+                                            <TextBlock x:Name="StudentCountText" Grid.Column="1" Foreground="#64748B" FontSize="13"/>
+                                        </Grid>
+                                    </Border>
+                                    <DataGrid x:Name="StudentGrid"
+                                              Height="220"
+                                              AutoGenerateColumns="False"
+                                              IsReadOnly="True"
+                                              GridLinesVisibility="Horizontal"
+                                              BorderThickness="0"
+                                              Background="White"
+                                              RowBackground="White"
+                                              HeadersVisibility="Column">
+                                        <DataGrid.Styles>
+                                            <Style Selector="DataGridColumnHeader">
+                                                <Setter Property="Background" Value="White"/>
+                                                <Setter Property="Foreground" Value="#64748B"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                                <Setter Property="Padding" Value="10"/>
+                                            </Style>
+                                        </DataGrid.Styles>
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Student No" Binding="{Binding StudentNo}" Width="120"/>
+                                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="200"/>
+                                            <DataGridTextColumn Header="Received" Binding="{Binding ReceivedDateDisplay}" Width="100"/>
+                                            <DataGridTextColumn Header="Due Date" Binding="{Binding DueDateDisplay}" Width="100"/>
+                                            <DataGridTextColumn Header="DOB" Binding="{Binding DateOfBirthDisplay}" Width="100"/>
+                                            <DataGridTextColumn Header="Decision" Binding="{Binding Decision}" Width="120"/>
+                                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                                            <DataGridTextColumn Header="Notes" Binding="{Binding ErrorMessage}" Width="*"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border x:Name="ActionPanel"
+                                    Background="#F8F9FA"
+                                    CornerRadius="8"
+                                    Padding="15"
+                                    IsVisible="False">
+                                <StackPanel Spacing="15">
+                                    <TextBlock Text="Processing Options:" FontWeight="SemiBold"/>
+                                    <WrapPanel Orientation="Horizontal">
+                                        <RadioButton x:Name="MergeOverviewCheckBox"
+                                                  Content="Merge Overview"
+                                                  IsChecked="False"
+                                                  Margin="0,0,20,0"
+                                                  GroupName="ProcessingMode"/>
+                                        <RadioButton x:Name="ProcessRejectsCheckBox"
+                                                  Content="Process Rejects"
+                                                  IsChecked="True"
+                                                  Margin="0,0,20,0"
+                                                  GroupName="ProcessingMode"/>
+                                        <RadioButton x:Name="ProcessAcceptsCheckBox"
+                                                  Content="Process Accepts"
+                                                  IsChecked="False"
+                                                  GroupName="ProcessingMode"/>
+                                    </WrapPanel>
+                                    <CheckBox x:Name="DebugModeCheckBox"
+                                              Content="🐛 Debug Mode (Process 1 record and PAUSE before clicking Process)"
+                                              Foreground="#DC3545"
+                                              FontWeight="SemiBold"
+                                              Margin="0,5,0,0"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <Button x:Name="StartButton"
+                                                Content="Start Processing"
+                                                Padding="20,12"
+                                                Background="#007BFF"
+                                                Foreground="White"
+                                                CornerRadius="4"
+                                                FontWeight="SemiBold"/>
+                                        <Button x:Name="StopButton"
+                                                Content="Stop"
+                                                Padding="20,12"
+                                                Background="#DC3545"
+                                                Foreground="White"
+                                                CornerRadius="4"
+                                                IsEnabled="False"/>
+                                        <Button x:Name="ResetButton"
+                                                Content="🔄 Reset"
+                                                Padding="20,12"
+                                                Background="#6C757D"
+                                                Foreground="White"
+                                                CornerRadius="4"
+                                                FontWeight="Medium"/>
+                                    </StackPanel>
+                                    <Border BorderThickness="0,1,0,0" BorderBrush="#DEE2E6" Padding="0,12,0,0">
+                                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                            <TextBlock Text="PDF Tools:" VerticalAlignment="Center"
+                                                       Foreground="#64748B" FontSize="13"/>
+                                            <Button x:Name="PdfToolsButton"
+                                                    Content="📄 Rename &amp; Rank PDFs"
+                                                    Padding="16,10"
+                                                    Background="#8B5CF6"
+                                                    Foreground="White"
+                                                    CornerRadius="4"
+                                                    FontWeight="Medium"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Background="#1E293B" CornerRadius="12" Padding="0" ClipToBounds="True">
+                                <StackPanel>
+                                    <Border Background="#0F172A" Padding="15,10">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="System Log" Foreground="#94A3B8" FontSize="12" FontWeight="Bold"/>
+                                            <Button x:Name="ClearLogButton" Content="Clear"
+                                                    Background="Transparent" Foreground="#64748B"
+                                                    BorderThickness="0" FontSize="11" Padding="5,0"/>
+                                        </Grid>
+                                    </Border>
+                                    <TextBox x:Name="StatusLog"
+                                             Height="120"
+                                             Background="Transparent"
+                                             Foreground="#00FF9C"
+                                             BorderThickness="0"
+                                             IsReadOnly="True"
+                                             FontFamily="Consolas, Monaco, monospace"
+                                             FontSize="12"
+                                             Padding="15"/>
+                                </StackPanel>
+                            </Border>
+
                         </StackPanel>
-                    </Border>
-                    
-                </StackPanel>
-            </ScrollViewer>
-            
-            <Border Grid.Row="2" Padding="20" Background="Transparent">
+                    </ScrollViewer>
+                </TabItem>
+
+            </TabControl>
+
+            <!-- Footer -->
+            <Border Grid.Row="2" Padding="20,10" Background="Transparent">
                 <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock x:Name="FooterStatus" 
-                               Text="Waiting for file..." 
-                               Foreground="#64748B" 
+                    <TextBlock x:Name="FooterStatus"
+                               Text="Waiting for file..."
+                               Foreground="#64748B"
                                VerticalAlignment="Center"/>
-                    
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                        <Button x:Name="SettingsButton" Content="⚙️" FontSize="24"
- Padding="5" CornerRadius="6" Background="White" BorderBrush="#E2E8F0" BorderThickness="1"/>
+                        <Button x:Name="SettingsButton" Content="⚙️" FontSize="22"
+                                Padding="5" CornerRadius="6" Background="White" BorderBrush="#E2E8F0" BorderThickness="1"/>
                         <Button x:Name="ExitButton" Content="Exit" Padding="20,8" CornerRadius="6" Background="Transparent" Foreground="#64748B"/>
                     </StackPanel>
                 </Grid>
             </Border>
-            
+
         </Grid>
     </Border>
 </Window>

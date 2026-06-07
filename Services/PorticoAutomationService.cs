@@ -739,15 +739,106 @@ public class PorticoAutomationService : IPorticoAutomationService
         StudentProcessed?.Invoke(this, student);
     }
 
+    public async Task<string> DownloadDepartmentReportAsync(string fullProgrammeName, string downloadDir)
+    {
+        if (_page == null) throw new InvalidOperationException("Service not initialised.");
+
+        LogStatus("Looking for Department Application Reports link...");
+        var deptLink = _page.Locator("a").Filter(new() { HasText = "Department Application Reports" }).First;
+        if (!await deptLink.IsVisibleAsync())
+        {
+            LogStatus("Link not visible — navigating to portal home...");
+            await _page.GotoAsync("https://evision.ucl.ac.uk/urd/sits.urd/run/siw_lgn");
+            await _page.WaitForSelectorAsync("text=My Portico", new PageWaitForSelectorOptions { Timeout = 30000 });
+            deptLink = _page.Locator("a").Filter(new() { HasText = "Department Application Reports" }).First;
+        }
+
+        await deptLink.ClickAsync();
+        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Task.Delay(1000);
+        LogStatus("On Report Parameters page.");
+
+        // Clear any existing programme code tag selections
+        var removed = await _page.EvaluateAsync<int>(@"() => {
+            const btns = document.querySelectorAll('button[title=""Remove""], .sit-remove, [class*=""remove""][class*=""btn""]');
+            btns.forEach(b => b.click());
+            return btns.length;
+        }");
+        if (removed > 0) await Task.Delay(400);
+
+        // Find the Programme code autocomplete input — it is typically the last text input on the form
+        LogStatus($"Entering programme name: {fullProgrammeName}");
+        var textInputs = _page.Locator("input[type='text']");
+        int inputCount = await textInputs.CountAsync();
+        var progCodeInput = inputCount >= 2 ? textInputs.Nth(inputCount - 1) : textInputs.First;
+
+        await progCodeInput.ClickAsync();
+        await progCodeInput.ClearAsync();
+
+        // Type first 8 chars to trigger the autocomplete dropdown
+        var searchTerm = fullProgrammeName.Length > 8 ? fullProgrammeName[..8] : fullProgrammeName;
+        await _page.Keyboard.TypeAsync(searchTerm, new KeyboardTypeOptions { Delay = 90 });
+        await Task.Delay(2000);
+
+        // Click the matching suggestion
+        var suggestion = _page.Locator("li").Filter(new() { HasText = fullProgrammeName }).First;
+        if (!await suggestion.IsVisibleAsync())
+            suggestion = _page.Locator($"[class*='autocomplete'] li, [class*='dropdown'] li, ul li").Filter(new() { HasText = fullProgrammeName[..Math.Min(15, fullProgrammeName.Length)] }).First;
+
+        if (await suggestion.IsVisibleAsync())
+        {
+            LogStatus("Found autocomplete suggestion — clicking.");
+            await suggestion.ClickAsync();
+        }
+        else
+        {
+            // JS fallback: click a list item containing the programme name
+            var jsClicked = await _page.EvaluateAsync<bool>($@"() => {{
+                const items = document.querySelectorAll('li, .autocomplete-option, .dropdown-item');
+                for (const item of items) {{
+                    if (item.textContent && item.textContent.includes('{fullProgrammeName[..Math.Min(10, fullProgrammeName.Length)]}')) {{
+                        item.click(); return true;
+                    }}
+                }}
+                return false;
+            }}");
+            LogStatus(jsClicked ? "Suggestion clicked via JS." : "No suggestion found — pressing Enter.");
+            if (!jsClicked) await progCodeInput.PressAsync("Enter");
+        }
+
+        await Task.Delay(500);
+
+        LogStatus("Clicking Run Report...");
+        var runBtn = _page.Locator("input[value='Run Report'], button:has-text('Run Report')").First;
+        await runBtn.ClickAsync();
+
+        LogStatus("Waiting for report generation (may take up to 3 min)...");
+        await _page.WaitForSelectorAsync("text=Completed", new PageWaitForSelectorOptions { Timeout = 180000 });
+        LogStatus("Report generated. Starting download...");
+
+        Directory.CreateDirectory(downloadDir);
+        var savePath = Path.Combine(downloadDir, $"DeptAppReport_{DateTime.Now:yyyyMMddHHmmss}.csv");
+
+        var download = await _page.RunAndWaitForDownloadAsync(async () =>
+        {
+            var okBtn = _page.Locator("button:has-text('Ok'), button:has-text('OK')").First;
+            await okBtn.ClickAsync();
+        }, new PageRunAndWaitForDownloadOptions { Timeout = 30000 });
+
+        await download.SaveAsAsync(savePath);
+        LogStatus($"Report downloaded: {Path.GetFileName(savePath)}");
+        return savePath;
+    }
+
     public async Task CloseAsync()
     {
         LogStatus("Closing browser...");
-        if (_context != null) 
-        { 
-            await _context.CloseAsync(); 
-            _context = null; 
+        if (_context != null)
+        {
+            await _context.CloseAsync();
+            _context = null;
         }
-        _playwright?.Dispose(); 
+        _playwright?.Dispose();
         _playwright = null;
         _page = null;
     }
