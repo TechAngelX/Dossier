@@ -37,10 +37,12 @@ dotnet clean -c Release --nologo -v q 2>$null
 Write-Host "[2/4] Restoring dependencies..." -ForegroundColor Blue
 dotnet restore --nologo -v q
 
-# 3. Publish
-Write-Host "[3/4] Building self-contained app..." -ForegroundColor Blue
+# 3. Publish (single file, self-contained)
+Write-Host "[3/4] Building self-contained single-file app..." -ForegroundColor Blue
 dotnet publish -c Release -r $Runtime `
     --self-contained true `
+    -p:PublishSingleFile=true `
+    -p:IncludeNativeLibrariesForSelfExtract=true `
     --nologo `
     -v q
 
