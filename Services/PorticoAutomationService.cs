@@ -830,6 +830,307 @@ public class PorticoAutomationService : IPorticoAutomationService
         return savePath;
     }
 
+    /// <summary>
+    /// Individual Student Overview (ISO) flow:
+    /// Awards, Assessments and Achievements → Data Quality Reports → Individual Student Overview.
+    /// Enters the student code, picks the autocomplete match and programme route, retrieves the
+    /// record, then downloads the "Download as CSV" export. Returns the saved CSV path.
+    /// </summary>
+    public async Task<string> DownloadIndividualStudentOverviewCsvAsync(string studentNumber, string downloadDir)
+    {
+        if (_page == null) throw new InvalidOperationException("Service not initialised.");
+
+        studentNumber = studentNumber.Trim();
+        LogStatus($"=== ISO: {studentNumber} ===");
+
+        // Step 1: Open the "Awards, Assessments and Achievements" menu (left-nav anchor)
+        LogStatus("[Step 1] Opening 'Awards, Assessments and Achievements'...");
+        var awardsLink = _page.Locator("a").Filter(
+            new() { HasText = "Awards, Assessments and Achievements" }).First;
+        if (!await awardsLink.IsVisibleAsync())
+        {
+            LogStatus("[Step 1] Menu not visible — navigating to portal home first...");
+            await _page.GotoAsync(_config?.PorticoUrl ?? "https://evision.ucl.ac.uk/urd/sits.urd/run/siw_lgn");
+            await _page.WaitForSelectorAsync("text=My Portico", new PageWaitForSelectorOptions { Timeout = 30000 });
+            awardsLink = _page.Locator("a").Filter(
+                new() { HasText = "Awards, Assessments and Achievements" }).First;
+        }
+        if (!await awardsLink.IsVisibleAsync())
+            awardsLink = _page.Locator("a, span, div, li").Filter(
+                new() { HasText = "Awards, Assessments and Achievements" }).First;
+        await awardsLink.ClickAsync();
+        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 30000 });
+        await Task.Delay(2000);
+
+        // Step 2: Click the "Individual Student Overview" report link.
+        // The link lives in the "Data Quality Reports" container on the Awards portal page,
+        // which can take a moment to render — poll, normalising whitespace and preferring anchors.
+        LogStatus("[Step 2] Locating 'Individual Student Overview' link...");
+        string clickInfo = "NOT_FOUND";
+        for (int attempt = 0; attempt < 10; attempt++)
+        {
+            clickInfo = await _page.EvaluateAsync<string>(@"() => {
+                const norm = s => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                const target = 'individual student overview';
+                // Pass 1: exact match, anchors/buttons first (real clickable controls)
+                const clickable = Array.from(document.querySelectorAll('a, button, input[type=button], input[type=submit]'));
+                for (const el of clickable) {
+                    const t = norm(el.textContent) || norm(el.value);
+                    if (t === target) { el.scrollIntoView(); el.click(); return 'CLICKED_ANCHOR'; }
+                }
+                // Pass 2: any element whose *own* text is exactly the target
+                const all = Array.from(document.querySelectorAll('span, div, li, td'));
+                for (const el of all) {
+                    if (norm(el.textContent) === target && el.children.length === 0) {
+                        el.scrollIntoView(); el.click(); return 'CLICKED_TEXT';
+                    }
+                }
+                // Pass 3: anchor whose text merely contains the target
+                for (const el of clickable) {
+                    if (norm(el.textContent).includes(target)) { el.scrollIntoView(); el.click(); return 'CLICKED_CONTAINS'; }
+                }
+                return 'NOT_FOUND';
+            }");
+            if (clickInfo.StartsWith("CLICKED")) break;
+            await Task.Delay(1500);
+        }
+
+        if (!clickInfo.StartsWith("CLICKED"))
+        {
+            // Diagnostics: dump the link/report texts actually present so we can see what to match.
+            var linkDump = await _page.EvaluateAsync<string>(@"() => {
+                const out = [];
+                document.querySelectorAll('a, button, input[type=button], input[type=submit]').forEach(el => {
+                    const t = ((el.textContent || '') + (el.value || '')).replace(/\s+/g, ' ').trim();
+                    if (t) out.push(t);
+                });
+                return out.slice(0, 150).join('  |  ');
+            }");
+            LogStatus("[Step 2] Clickable items on page: " + linkDump);
+            throw new Exception("Could not find the 'Individual Student Overview' report link. See log for the links found on the page.");
+        }
+
+        LogStatus($"[Step 2] {clickInfo}.");
+        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 30000 });
+        await Task.Delay(1500);
+
+        // Step 3: Enter the Student Code and select the AJAX autocomplete match.
+        // The form is a SITS "ttq" form — the code box triggers an AJAX lookup whose selection
+        // populates the Programme Route <select data-ttq-field="SPRCode">. Only a *real* mouse
+        // click on the suggestion row fires that lookup (a synthetic click / keyboard does not),
+        // so click the row and confirm SPRCode fills as proof the student was selected.
+        LogStatus("[Step 3] Entering student code...");
+        await _page.WaitForSelectorAsync("input[type='text']", new PageWaitForSelectorOptions { Timeout = 20000 });
+        var codeInput = _page.Locator("input[type='text']:visible").First;
+        if (!await codeInput.IsVisibleAsync())
+            codeInput = _page.Locator("input[type='text']").First;
+
+        await codeInput.ClickAsync();
+        await codeInput.ClearAsync();
+        await _page.Keyboard.TypeAsync(studentNumber, new KeyboardTypeOptions { Delay = 80 });
+        await Task.Delay(1500);
+
+        async Task<bool> RouteReadyAsync() => await _page!.EvaluateAsync<bool>(@"() => {
+            const sel = document.querySelector('[data-ttq-field=""SPRCode""]')
+                     || Array.from(document.querySelectorAll('select')).find(s => s.offsetParent !== null);
+            return !!(sel && sel.options && sel.options.length > 0 && (sel.value || '').trim() !== '');
+        }");
+
+        // Real mouse click on the dropdown row that starts with the student number.
+        var suggestion = _page.Locator("li, tr, td, div, a")
+            .Filter(new() { HasTextRegex = new System.Text.RegularExpressions.Regex($@"^\s*{System.Text.RegularExpressions.Regex.Escape(studentNumber)}\b") })
+            .Last;
+        try
+        {
+            if (await suggestion.IsVisibleAsync())
+                await suggestion.ClickAsync();
+        }
+        catch { /* fall back to keyboard below */ }
+
+        bool routeReady = false;
+        for (int i = 0; i < 12; i++)
+        {
+            if (await RouteReadyAsync()) { routeReady = true; break; }
+            await Task.Delay(500);
+        }
+
+        if (!routeReady)
+        {
+            LogStatus("[Step 3] Suggestion click didn't populate route — trying ArrowDown → Enter...");
+            await codeInput.PressAsync("ArrowDown");
+            await Task.Delay(400);
+            await codeInput.PressAsync("Enter");
+            for (int i = 0; i < 10; i++)
+            {
+                if (await RouteReadyAsync()) { routeReady = true; break; }
+                await Task.Delay(500);
+            }
+        }
+
+        LogStatus(routeReady
+            ? "[Step 3] Student selected — programme route populated."
+            : "[Step 3] WARNING: programme route still empty; continuing anyway.");
+
+        // Step 4: Ensure the Programme Route has a value (auto-fills on selection; force first real option if not)
+        var routeResult = await _page.EvaluateAsync<string>(@"() => {
+            const sel = document.querySelector('[data-ttq-field=""SPRCode""]')
+                     || Array.from(document.querySelectorAll('select')).find(s => s.offsetParent !== null);
+            if (!sel || sel.options.length === 0) return 'NO_SELECT';
+            if ((sel.value || '').trim() !== '') return 'ALREADY: ' + sel.options[sel.selectedIndex].text;
+            for (let i = 0; i < sel.options.length; i++) {
+                const v = (sel.options[i].value || '').trim();
+                const txt = (sel.options[i].text || '').trim().toLowerCase();
+                if (v !== '' && !txt.includes('select') && !txt.includes('please')) {
+                    sel.selectedIndex = i; sel.value = sel.options[i].value;
+                    sel.dispatchEvent(new Event('change', { bubbles: true }));
+                    return 'SELECTED: ' + sel.options[i].text;
+                }
+            }
+            return 'NO_SELECT';
+        }");
+        LogStatus($"[Step 4] Programme route: {routeResult}");
+        await Task.Delay(500);
+
+        // Step 5: Click the "Retrieve student information" button via its ttq field hook
+        LogStatus("[Step 5] Clicking 'Retrieve student information'...");
+        var retrieveBtn = _page.Locator("[data-ttq-field='retrieve']").First;
+        if (await retrieveBtn.CountAsync() == 0 || !await retrieveBtn.IsVisibleAsync())
+            retrieveBtn = _page.Locator("input[value*='Retrieve'], button:has-text('Retrieve'), a:has-text('Retrieve')").First;
+        if (await retrieveBtn.CountAsync() == 0)
+            throw new Exception("Could not find the 'Retrieve student information' button.");
+        await retrieveBtn.ClickAsync();
+
+        // Wait for the results page: poll for the green "Download as CSV" control (up to 40s)
+        LogStatus("[Step 5] Waiting for results to load...");
+        bool resultsReady = false;
+        for (int i = 0; i < 40; i++)
+        {
+            var has = await _page.EvaluateAsync<bool>(@"() => {
+                const norm = s => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                const els = document.querySelectorAll('a, button, input');
+                for (const el of els) {
+                    if ((norm(el.value) + ' ' + norm(el.textContent)).includes('download as csv')) return true;
+                }
+                return false;
+            }");
+            if (has) { resultsReady = true; break; }
+            await Task.Delay(1000);
+        }
+        if (!resultsReady)
+            throw new Exception("Results page did not load — no 'Download as CSV' button appeared after Retrieve.");
+        LogStatus("[Step 5] Results page loaded.");
+        await Task.Delay(500);
+
+        // Step 6: Scrape the student name from the "Student Details [STU]" table
+        LogStatus("[Step 6] Reading student name...");
+        var scrapedName = await _page.EvaluateAsync<string>(@"() => {
+            // SITS responsive tables embed the column header inside each data cell (a visually
+            // hidden span), so cell.textContent reads like 'SurnameYang'. Strip that header prefix.
+            const norm = s => (s || '').replace(/\s+/g, ' ').trim();
+            const strip = (val, header) => {
+                let v = norm(val), h = norm(header);
+                if (h && v.toLowerCase().startsWith(h.toLowerCase())) v = v.slice(h.length).trim();
+                return v;
+            };
+            const tables = document.querySelectorAll('table');
+            for (const table of tables) {
+                const rows = table.querySelectorAll('tr');
+                let surnameCol = -1, firstCol = -1, headerRow = -1, surnameHdr = '', firstHdr = '';
+                for (let r = 0; r < rows.length; r++) {
+                    const cells = rows[r].querySelectorAll('th, td');
+                    for (let c = 0; c < cells.length; c++) {
+                        const raw = norm(cells[c].textContent);
+                        const h = raw.toLowerCase();
+                        if (h === 'surname') { surnameCol = c; surnameHdr = raw; }
+                        if (h === 'first names' || h === 'first name' || h === 'forename' || h === 'forenames') { firstCol = c; firstHdr = raw; }
+                    }
+                    if (surnameCol >= 0 && firstCol >= 0) { headerRow = r; break; }
+                }
+                if (headerRow >= 0) {
+                    for (let r = headerRow + 1; r < rows.length; r++) {
+                        const cells = rows[r].querySelectorAll('td, th');
+                        if (cells.length > Math.max(surnameCol, firstCol)) {
+                            const surname = strip(cells[surnameCol].textContent, surnameHdr);
+                            const first = strip(cells[firstCol].textContent, firstHdr);
+                            if (surname || first) return first + '|' + surname;
+                        }
+                    }
+                }
+            }
+            return '';
+        }");
+
+        string firstNames = "", surname = "";
+        if (!string.IsNullOrWhiteSpace(scrapedName) && scrapedName.Contains('|'))
+        {
+            var parts = scrapedName.Split('|', 2);
+            firstNames = parts[0].Trim();
+            surname = parts[1].Trim();
+            LogStatus($"[Step 6] Student: {firstNames} {surname}");
+        }
+        else
+        {
+            LogStatus("[Step 6] WARNING: Could not read student name — using student number only.");
+        }
+
+        // Build "{studentNumber} {FirstNames} {Surname} - ISO.csv" (or fall back to number only)
+        var namePart = string.Join(" ", new[] { firstNames, surname }
+            .Where(s => !string.IsNullOrWhiteSpace(s))).Trim();
+        var baseName = string.IsNullOrWhiteSpace(namePart)
+            ? $"{studentNumber} - ISO"
+            : $"{studentNumber} {namePart} - ISO";
+        var invalid = Path.GetInvalidFileNameChars();
+        var safeName = new string(baseName.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
+        var fileName = safeName + ".csv";
+
+        // Step 7: Click the green "Download as CSV" button with a REAL mouse click (a synthetic
+        // el.click() is ignored by this SITS UI). The export may either stream a download on the
+        // current page OR open the CSV in a new tab/popup — arm waiters for both before clicking.
+        LogStatus("[Step 7] Locating 'Download as CSV'...");
+        var csvButton = _page.GetByText("Download as CSV", new() { Exact = false }).First;
+        if (await csvButton.CountAsync() == 0)
+            csvButton = _page.Locator("input[value*='Download as CSV'], a:has-text('Download'), button:has-text('Download')").First;
+        if (await csvButton.CountAsync() == 0)
+            throw new Exception("'Download as CSV' button not found on the results page.");
+
+        Directory.CreateDirectory(downloadDir);
+        LogStatus("[Step 7] Clicking 'Download as CSV'...");
+
+        // Arm both waiters BEFORE the click so the event can't be missed.
+        var pageDownloadTask = _page.WaitForDownloadAsync(new PageWaitForDownloadOptions { Timeout = 60000 });
+        var popupTask = _page.WaitForPopupAsync(new PageWaitForPopupOptions { Timeout = 8000 });
+
+        await csvButton.ScrollIntoViewIfNeededAsync();
+        await csvButton.ClickAsync();
+
+        IPage? popup = null;
+        try { popup = await popupTask; } catch { /* no popup opened */ }
+
+        IDownload download;
+        if (popup != null)
+        {
+            LogStatus("[Step 7] CSV opened in a new tab — capturing its download...");
+            try
+            {
+                download = await popup.WaitForDownloadAsync(new PageWaitForDownloadOptions { Timeout = 60000 });
+            }
+            catch
+            {
+                // The popup may already have streamed the file to the main page instead.
+                download = await pageDownloadTask;
+            }
+        }
+        else
+        {
+            download = await pageDownloadTask;
+        }
+
+        var savePath = Path.Combine(downloadDir, fileName);
+        await download.SaveAsAsync(savePath);
+        LogStatus($"=== ISO SAVED: {savePath} ===");
+        return savePath;
+    }
+
     public async Task CloseAsync()
     {
         LogStatus("Closing browser...");

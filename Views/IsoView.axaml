@@ -1,0 +1,86 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             x:Class="Dossier.Views.IsoView">
+
+    <Panel>
+        <Border IsHitTestVisible="False">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                    <GradientStop Color="#E0F2FE" Offset="0"/>
+                    <GradientStop Color="#F0F9FF" Offset="0.5"/>
+                    <GradientStop Color="#EEEBFF" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+        </Border>
+
+        <Grid RowDefinitions="Auto, Auto, *, Auto" Margin="30,20,30,20">
+
+            <!-- Header -->
+            <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                <TextBlock Text="Individual Student Overview" FontSize="22" FontWeight="Bold"
+                           Foreground="#1E293B" LetterSpacing="-0.5"/>
+                <TextBlock Text="Retrieve a single student's ISO report and download it as CSV"
+                           FontSize="11" Foreground="#64748B"/>
+            </StackPanel>
+
+            <!-- Input card -->
+            <Border Grid.Row="1" Classes="GlassCard" Margin="0,0,0,15">
+                <StackPanel Spacing="14">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="🎓" FontSize="16"/>
+                        <TextBlock Text="Student Code" FontWeight="SemiBold" Foreground="#334155"/>
+                    </StackPanel>
+                    <TextBox x:Name="StudentNumberBox" Watermark="e.g. 25221017"
+                             FontSize="14" MaxLength="12"/>
+
+                    <CheckBox x:Name="HeadlessCheckbox"
+                              Content="Run browser hidden (headless)"
+                              Foreground="#475569" FontSize="12"/>
+
+                    <TextBlock Text="Saved to your Desktop as: {student number} {first} {last} - ISO.csv"
+                               FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap"/>
+
+                    <Grid ColumnDefinitions="*, 10, Auto">
+                        <Button x:Name="DownloadButton" Grid.Column="0" Classes="Modern"
+                                Content="⬇  Retrieve &amp; Download CSV"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Background="#10B981" IsEnabled="False"/>
+                        <Button x:Name="ResetButton" Grid.Column="2" Classes="Modern"
+                                Content="↺ Reset" Background="#64748B"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Log -->
+            <Border Grid.Row="2" Classes="GlassCard" Padding="0" ClipToBounds="True">
+                <Grid RowDefinitions="Auto, *">
+                    <Border Grid.Row="0" Background="#F8FAFC" BorderBrush="#E2E8F0"
+                            BorderThickness="0,0,0,1" Padding="15,10">
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBlock Text="System Log" FontWeight="SemiBold" FontSize="12" Foreground="#64748B"/>
+                            <Button x:Name="ClearLogButton" Grid.Column="1" Content="Clear"
+                                    FontSize="10" Padding="8,2" Background="Transparent" Foreground="#94A3B8"/>
+                        </Grid>
+                    </Border>
+                    <TextBox x:Name="StatusLog" Grid.Row="1" IsReadOnly="True"
+                             Background="Transparent" BorderThickness="0"
+                             FontFamily="Consolas, Monaco, monospace" FontSize="11" Padding="15"
+                             TextWrapping="Wrap"/>
+                </Grid>
+            </Border>
+
+            <!-- Footer -->
+            <Grid Grid.Row="3" ColumnDefinitions="*, Auto" Margin="0,12,0,0">
+                <TextBlock x:Name="StatusLabel" Text="Enter a student number to begin"
+                           VerticalAlignment="Center" Foreground="#64748B" FontWeight="Medium"/>
+                <ProgressBar x:Name="BusyBar" Grid.Column="1" Width="140" Height="6" CornerRadius="3"
+                             Foreground="#2563EB" Background="#E2E8F0" IsIndeterminate="False"
+                             VerticalAlignment="Center"/>
+            </Grid>
+
+        </Grid>
+    </Panel>
+</UserControl>

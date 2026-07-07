@@ -285,6 +285,11 @@
                     </ScrollViewer>
                 </TabItem>
 
+                <!-- Tab 3: ISO — Individual Student Overview CSV downloader (used less often) -->
+                <TabItem Header="🎓  ISO">
+                    <views:IsoView />
+                </TabItem>
+
             </TabControl>
 
             <!-- Footer -->
