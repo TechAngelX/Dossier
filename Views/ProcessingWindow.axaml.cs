@@ -15,6 +15,7 @@ namespace Dossier.Views;
 public partial class ProcessingWindow : Window
 {
     private ObservableCollection<ProcessingStudentViewModel> _students = new();
+    private List<StudentRecord> _sourceRecords = new();
     private int _totalStudents;
     private int _processedCount;
     private System.Timers.Timer? _pulseTimer;
@@ -28,15 +29,113 @@ public partial class ProcessingWindow : Window
 
         CancelButton.Click += (s, e) => OnCancelRequested();
         CloseButton.Click += (s, e) => Close();
+        OutputFailedButton.Click += OnOutputFailedClicked;
     }
     
     public event EventHandler? CancelRequested;
+
+    private async void OnStudentNoClicked(object? sender, Avalonia.Input.PointerPressedEventArgs e)
+    {
+        if (sender is not TextBlock tb || tb.Tag is not string studentNo || string.IsNullOrEmpty(studentNo))
+            return;
+
+        var clipboard = Clipboard;
+        if (clipboard is null)
+            return;
+
+        await clipboard.SetTextAsync(studentNo);
+
+        // Brief visual confirmation
+        var original = tb.Foreground;
+        tb.Foreground = Avalonia.Media.Brushes.Green;
+        await System.Threading.Tasks.Task.Delay(500);
+        tb.Foreground = original;
+    }
+
+    private void OnOutputFailedClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var failedNumbers = _students
+            .Where(s => s.StatusText == "Failed")
+            .Select(s => s.StudentNo)
+            .ToHashSet();
+
+        if (failedNumbers.Count == 0)
+            return;
+
+        // Prefer full source records (Programme, ErrorMessage); fall back to the row view model.
+        var rows = _sourceRecords
+            .Where(r => failedNumbers.Contains(r.StudentNo))
+            .Select(r => (r.StudentNo, r.Forename, r.Surname, r.Decision, r.Programme, r.ErrorMessage))
+            .ToList();
+
+        var covered = rows.Select(r => r.StudentNo).ToHashSet();
+        foreach (var vm in _students.Where(s => s.StatusText == "Failed" && !covered.Contains(s.StudentNo)))
+            rows.Add((vm.StudentNo, vm.Forename, vm.Surname, vm.Decision, "", ""));
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("StudentNo,Forename,Surname,Decision,Programme,ErrorMessage");
+        foreach (var r in rows)
+        {
+            sb.AppendLine(string.Join(",", new[]
+            {
+                CsvEscape(r.StudentNo),
+                CsvEscape(r.Forename),
+                CsvEscape(r.Surname),
+                CsvEscape(r.Decision),
+                CsvEscape(r.Programme),
+                CsvEscape(r.ErrorMessage)
+            }));
+        }
+
+        try
+        {
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            var fileName = $"Failed Records - {DateTime.Now:yyyy-MM-dd HHmm}.csv";
+            var savePath = System.IO.Path.Combine(desktop, fileName);
+            System.IO.File.WriteAllText(savePath, sb.ToString());
+
+            LogMessage($"Saved {rows.Count} failed record(s) to {savePath}");
+            FooterStatus.Text = $"Saved {rows.Count} failed record(s) to Desktop: {fileName}";
+            RevealInFileManager(savePath);
+        }
+        catch (Exception ex)
+        {
+            LogMessage($"ERROR saving failed records: {ex.Message}");
+            FooterStatus.Text = $"Could not save failed records: {ex.Message}";
+        }
+    }
+
+    private static string CsvEscape(string? value)
+    {
+        var v = value ?? "";
+        if (v.Contains(',') || v.Contains('"') || v.Contains('\n') || v.Contains('\r'))
+            return "\"" + v.Replace("\"", "\"\"") + "\"";
+        return v;
+    }
+
+    private static void RevealInFileManager(string path)
+    {
+        try
+        {
+            if (OperatingSystem.IsMacOS())
+                Process.Start("open", new[] { "-R", path });
+            else if (OperatingSystem.IsWindows())
+                Process.Start("explorer.exe", $"/select,\"{path}\"");
+            else if (OperatingSystem.IsLinux())
+                Process.Start("xdg-open", System.IO.Path.GetDirectoryName(path) ?? path);
+        }
+        catch
+        {
+            // Non-fatal: the file is already saved.
+        }
+    }
     
     public void Initialize(List<StudentRecord> students)
     {
+        _sourceRecords = students;
         _totalStudents = students.Count;
         _processedCount = 0;
-        
+
         _students.Clear();
         
         foreach (var student in students)
@@ -196,6 +295,7 @@ public partial class ProcessingWindow : Window
 
             CancelButton.IsVisible = false;
             CloseButton.IsVisible = true;
+            OutputFailedButton.IsVisible = failedCount > 0;
         });
     }
     

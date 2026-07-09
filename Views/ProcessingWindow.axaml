@@ -162,15 +162,24 @@
                                                     
                                                     <!-- Student Info Column -->
                                                     <StackPanel Grid.Column="1">
-                                                        <TextBlock FontSize="14" 
-                                                                 FontWeight="Medium"
-                                                                 Foreground="#2D3748">
-                                                            <Run Text="{Binding StudentNo}"/>
-                                                            <Run Text=" - "/>
-                                                            <Run Text="{Binding Forename}"/>
-                                                            <Run Text=" "/>
-                                                            <Run Text="{Binding Surname}"/>
-                                                        </TextBlock>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding StudentNo}"
+                                                                     FontSize="14"
+                                                                     FontWeight="Medium"
+                                                                     Foreground="#2D3748"
+                                                                     Cursor="Hand"
+                                                                     ToolTip.Tip="Click to copy student number"
+                                                                     Tag="{Binding StudentNo}"
+                                                                     PointerPressed="OnStudentNoClicked"/>
+                                                            <TextBlock FontSize="14"
+                                                                     FontWeight="Medium"
+                                                                     Foreground="#2D3748">
+                                                                <Run Text=" - "/>
+                                                                <Run Text="{Binding Forename}"/>
+                                                                <Run Text=" "/>
+                                                                <Run Text="{Binding Surname}"/>
+                                                            </TextBlock>
+                                                        </StackPanel>
                                                         <TextBlock Text="{Binding Decision}"
                                                                  FontSize="12"
                                                                  Foreground="#718096"
@@ -228,6 +237,14 @@
                                FontSize="14"
                                FontWeight="SemiBold"/>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                        <Button x:Name="OutputFailedButton"
+                                Content="Output Failed"
+                                Padding="20,10"
+                                Background="#ED8936"
+                                Foreground="White"
+                                CornerRadius="6"
+                                FontWeight="Medium"
+                                IsVisible="False"/>
                         <Button x:Name="CancelButton"
                                 Content="Cancel"
                                 Padding="20,10"
