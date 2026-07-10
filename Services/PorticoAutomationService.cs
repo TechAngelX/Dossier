@@ -1,5 +1,6 @@
 // Services/PorticoAutomationService.cs
 
+using System.Diagnostics;
 using Microsoft.Playwright;
 using Dossier.Models;
 
@@ -7,11 +8,18 @@ namespace Dossier.Services;
 
 public class PorticoAutomationService : IPorticoAutomationService
 {
+    // Single browser shared by every tab — the Edge profile only supports one
+    // running browser at a time, so all automation must go through one instance.
+    public static PorticoAutomationService Shared { get; } = new();
+
+    private const string HandoffPidFileName = "dossier-handoff.pid";
+
     private IPlaywright? _playwright;
     private IBrowser? _browser;
     private IBrowserContext? _context;
     private IPage? _page;
     private AppConfig? _config;
+    private string? _userDataDir;
 
     public bool DebugMode { get; set; } = false;
 
@@ -44,6 +52,27 @@ public class PorticoAutomationService : IPorticoAutomationService
     public async Task InitialiseAsync(AppConfig config)
     {
         _config = config;
+
+        // Reuse the browser left open from a previous run, if it's still alive.
+        if (_context != null)
+        {
+            try
+            {
+                _page = _context.Pages.FirstOrDefault(p => !p.IsClosed) ?? await _context.NewPageAsync();
+                LogStatus("Reusing existing browser session (launch settings unchanged).");
+                return;
+            }
+            catch
+            {
+                LogStatus("Previous browser was closed — launching a fresh one.");
+                try { await _context.CloseAsync(); } catch { }
+                _context = null;
+                _playwright?.Dispose();
+                _playwright = null;
+                _page = null;
+            }
+        }
+
         LogStatus("Initialising Playwright...");
         try
         {
@@ -63,6 +92,10 @@ public class PorticoAutomationService : IPorticoAutomationService
             userDataDir = Path.Combine(appDataPath, "Dossier", "EdgeProfile");
             Directory.CreateDirectory(userDataDir);
         }
+        _userDataDir = userDataDir;
+
+        // If a hand-off browser from a previous session still owns the profile, close it first.
+        await CloseStaleHandoffBrowserAsync(userDataDir);
 
         var contextOptions = new BrowserTypeLaunchPersistentContextOptions
         {
@@ -1131,17 +1164,123 @@ public class PorticoAutomationService : IPorticoAutomationService
         return savePath;
     }
 
-    public async Task CloseAsync()
+    public async Task CloseAsync(bool handOffToUser = false)
     {
         LogStatus("Closing browser...");
         if (_context != null)
         {
-            await _context.CloseAsync();
+            try { await _context.CloseAsync(); } catch { }
             _context = null;
         }
         _playwright?.Dispose();
         _playwright = null;
         _page = null;
+
+        if (handOffToUser && !string.IsNullOrEmpty(_userDataDir))
+        {
+            try
+            {
+                await Task.Delay(800); // let Edge fully exit and release the profile lock
+                var pid = LaunchHandoffBrowser(_userDataDir, _config?.PorticoUrl);
+                if (pid > 0)
+                    File.WriteAllText(Path.Combine(_userDataDir, HandoffPidFileName), pid.ToString());
+                LogStatus("Edge reopened for normal use — your Portico session is still signed in.");
+            }
+            catch (Exception ex)
+            {
+                LogStatus($"Could not reopen Edge for normal use: {ex.Message}");
+            }
+        }
+    }
+
+    private static int LaunchHandoffBrowser(string userDataDir, string? url)
+    {
+        ProcessStartInfo psi;
+        bool pidIsBrowser = true;
+
+        if (OperatingSystem.IsMacOS())
+        {
+            var edgeBinary = "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge";
+            if (File.Exists(edgeBinary))
+            {
+                psi = new ProcessStartInfo(edgeBinary);
+            }
+            else
+            {
+                // 'open' exits immediately, so the browser PID can't be tracked
+                psi = new ProcessStartInfo("open");
+                psi.ArgumentList.Add("-na");
+                psi.ArgumentList.Add("Microsoft Edge");
+                psi.ArgumentList.Add("--args");
+                pidIsBrowser = false;
+            }
+        }
+        else if (OperatingSystem.IsWindows())
+        {
+            var candidates = new[]
+            {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft", "Edge", "Application", "msedge.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft", "Edge", "Application", "msedge.exe"),
+            };
+            psi = new ProcessStartInfo(candidates.FirstOrDefault(File.Exists) ?? "msedge.exe");
+        }
+        else
+        {
+            psi = new ProcessStartInfo("microsoft-edge");
+        }
+
+        psi.ArgumentList.Add($"--user-data-dir={userDataDir}");
+        if (!string.IsNullOrEmpty(url))
+            psi.ArgumentList.Add(url);
+        psi.UseShellExecute = false;
+
+        var proc = Process.Start(psi);
+        return pidIsBrowser && proc != null ? proc.Id : 0;
+    }
+
+    private async Task CloseStaleHandoffBrowserAsync(string userDataDir)
+    {
+        var pidFile = Path.Combine(userDataDir, HandoffPidFileName);
+        if (!File.Exists(pidFile)) return;
+
+        try
+        {
+            if (int.TryParse(File.ReadAllText(pidFile).Trim(), out var pid))
+            {
+                var proc = Process.GetProcessById(pid);
+                // PID may have been recycled by the OS — only touch it if it's actually Edge
+                if (!proc.ProcessName.Contains("edge", StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                LogStatus("Closing the hand-off Edge window so automation can use the profile...");
+                if (OperatingSystem.IsWindows())
+                {
+                    proc.CloseMainWindow();
+                }
+                else
+                {
+                    var kill = Process.Start("kill", $"-TERM {pid}");
+                    kill?.WaitForExit(2000);
+                }
+
+                if (!proc.WaitForExit(5000))
+                    proc.Kill(entireProcessTree: true);
+
+                await Task.Delay(1000); // let the profile lock release
+            }
+        }
+        catch (ArgumentException)
+        {
+            // Process already gone — nothing to close.
+        }
+        catch (Exception ex)
+        {
+            LogStatus($"Note: could not close previous Edge window: {ex.Message}");
+        }
+        finally
+        {
+            try { File.Delete(pidFile); } catch { }
+        }
     }
 
     /// <summary>

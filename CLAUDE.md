@@ -106,6 +106,8 @@ Short codes in the spreadsheet (ML, CS, FT, DSML, CSML, etc.) are mapped to Port
 
 ### Browser Automation Patterns
 - **Persistent browser context** is stored at `~/.dossier-auth` so SSO/MFA sessions survive between runs.
+- **Shared browser singleton:** all tabs use `PorticoAutomationService.Shared` — the Edge profile only supports one running browser, so never construct a second service instance. The browser stays open between runs (Stop/end-of-batch do not close it); `InitialiseAsync` reuses the live context or relaunches if the user closed the window.
+- **Hand-off on quit:** Playwright kills its browser when the app exits, so `CloseAsync(handOffToUser: true)` relaunches a normal Edge on the same profile (still signed in) and records its PID in `dossier-handoff.pid` inside the profile dir. The next `InitialiseAsync` closes that hand-off browser automatically before launching automation.
 - **JavaScript `el.click()`** is used instead of Playwright's `.ClickAsync()` for buttons that trigger server-side page reloads — this avoids Playwright's navigation tracking hanging on slow server responses.
 - **DOM polling** (every 2 seconds, up to 120s timeout) checks `document.readyState === "complete"` AND whether the trigger button has disappeared, to detect when a slow server-side operation has finished.
 - **Failure recovery:** Each student is processed in a try/catch. On failure, the catch block calls `NavigateToUclSelectAsync()` to return the browser to a known-good state before continuing to the next student.

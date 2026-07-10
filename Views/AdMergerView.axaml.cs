@@ -351,6 +351,7 @@ public partial class AdMergerView : UserControl
         var inTrayPath = _inTrayFilePath;
         string? downloadedReportPath = null;
         PorticoAutomationService? porticoService = null;
+        EventHandler<string>? porticoStatusHandler = null;
 
         try
         {
@@ -359,8 +360,9 @@ public partial class AdMergerView : UserControl
             _statusLabel.Text = "Fetching report from Portico...";
 
             var config = new AppConfig();
-            porticoService = new PorticoAutomationService();
-            porticoService.StatusUpdated += (_, msg) => LogStatus(msg);
+            porticoService = PorticoAutomationService.Shared;
+            porticoStatusHandler = (_, msg) => LogStatus(msg);
+            porticoService.StatusUpdated += porticoStatusHandler;
 
             await porticoService.InitialiseAsync(config);
 
@@ -373,8 +375,7 @@ public partial class AdMergerView : UserControl
             var tempDir = Path.Combine(Path.GetTempPath(), "DossierADMerger");
             downloadedReportPath = await porticoService.DownloadDepartmentReportAsync(programmeName, tempDir);
 
-            await porticoService.CloseAsync();
-            porticoService = null;
+            LogStatus("Report downloaded — browser left open.");
 
             if (token.IsCancellationRequested) return;
 
@@ -479,9 +480,9 @@ public partial class AdMergerView : UserControl
         catch (Exception ex) { LogStatus($"Error: {ex.Message}"); }
         finally
         {
-            if (porticoService != null)
+            if (porticoService != null && porticoStatusHandler != null)
             {
-                try { await porticoService.CloseAsync(); } catch { }
+                porticoService.StatusUpdated -= porticoStatusHandler;
             }
             _isProcessing = false;
             _processButton.Content = "▶  Process Records";

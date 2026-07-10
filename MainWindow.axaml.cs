@@ -56,7 +56,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         
         _excelService = new ExcelService();
-        _automationService = new PorticoAutomationService();
+        _automationService = PorticoAutomationService.Shared;
         _pdfRenameService = new PdfRenameService();
         _config = new AppConfig();
         
@@ -605,11 +605,9 @@ public partial class MainWindow : Window
             _loadSheetButton.IsEnabled = true;
             _stopButton.IsEnabled = false;
             
-            if (!debugMode)
-            {
-                await _automationService.CloseAsync();
-            }
-            
+            processingWindow.LogMessage("Browser left open — use it freely; the next run will take it over automatically.");
+
+
             var successCount = _students.Count(s => s.Status == ProcessingStatus.Success);
             var failedCount = _students.Count(s => s.Status == ProcessingStatus.Failed);
             var skippedTotal = _students.Count(s => s.Status == ProcessingStatus.Skipped);
@@ -806,13 +804,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void StopButton_Click(object? sender, RoutedEventArgs e)
+    private void StopButton_Click(object? sender, RoutedEventArgs e)
     {
         _cancellationTokenSource?.Cancel();
-        LogStatus("Stopping and closing browser...");
+        LogStatus("Stopping after the current student — browser stays open.");
         _stopButton.IsEnabled = false;
-        await _automationService.CloseAsync();
-        LogStatus("Browser closed.");
     }
     
     private void ClearLogButton_Click(object? sender, RoutedEventArgs e)
@@ -826,13 +822,8 @@ public partial class MainWindow : Window
         await settingsWindow.ShowDialog(this);
     }
     
-    private async void ExitButton_Click(object? sender, RoutedEventArgs e)
+    private void ExitButton_Click(object? sender, RoutedEventArgs e)
     {
-        if (_isProcessing)
-        {
-            _cancellationTokenSource?.Cancel();
-            await _automationService.CloseAsync();
-        }
         Close();
     }
     
@@ -871,13 +862,28 @@ public partial class MainWindow : Window
         _studentGrid.ItemsSource = _students;
     }
     
-    protected override async void OnClosing(WindowClosingEventArgs e)
+    private bool _handOffInProgress;
+
+    protected override void OnClosing(WindowClosingEventArgs e)
     {
-        if (_isProcessing)
+        // The browser is handed off to a normal Edge before the window is allowed to close;
+        // an async close here would race app shutdown, so cancel first, hand off, then re-close.
+        if (_automationService.IsInitialised)
         {
-            _cancellationTokenSource?.Cancel();
-            await _automationService.CloseAsync();
+            e.Cancel = true;
+            if (!_handOffInProgress)
+            {
+                _handOffInProgress = true;
+                _cancellationTokenSource?.Cancel();
+                _ = HandOffBrowserThenCloseAsync();
+            }
         }
         base.OnClosing(e);
+    }
+
+    private async Task HandOffBrowserThenCloseAsync()
+    {
+        try { await _automationService.CloseAsync(handOffToUser: true); } catch { }
+        Close(); // IsInitialised is now false, so the window closes normally
     }
 }

@@ -82,14 +82,16 @@ public partial class IsoView : UserControl
 
         var desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
         PorticoAutomationService? service = null;
+        EventHandler<string>? statusHandler = null;
         string? savedPath = null;
 
         try
         {
             var config = new AppConfig { HeadlessMode = _headlessCheckbox.IsChecked == true };
 
-            service = new PorticoAutomationService();
-            service.StatusUpdated += (_, msg) => LogStatus(msg);
+            service = PorticoAutomationService.Shared;
+            statusHandler = (_, msg) => LogStatus(msg);
+            service.StatusUpdated += statusHandler;
 
             LogStatus("Launching browser...");
             await service.InitialiseAsync(config);
@@ -105,9 +107,9 @@ public partial class IsoView : UserControl
         }
         finally
         {
-            if (service != null)
+            if (service != null && statusHandler != null)
             {
-                try { await service.CloseAsync(); } catch { }
+                service.StatusUpdated -= statusHandler;
             }
 
             _isRunning = false;
