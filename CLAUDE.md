@@ -5,7 +5,6 @@
 Dossier is a cross-platform desktop app that automates repetitive admissions workflows in UCL's Portico student record system. Staff load a spreadsheet of student records and the app batch-processes them via browser automation — either processing Accept/Reject decisions or generating merged overview PDFs. It also includes a PDF File Tools module (ported from PDFusion) for renaming and ranking the downloaded PDFs.
 
 ## Tech Stack
-
 - **Language:** C# / .NET 10
 - **UI Framework:** Avalonia UI 11 (cross-platform — Windows, macOS, Linux)
 - **Browser Automation:** Microsoft Playwright 1.49 (targets Microsoft Edge)
