@@ -17,7 +17,7 @@
             </Border.Background>
         </Border>
 
-        <Grid RowDefinitions="Auto, Auto, Auto, *, Auto" Margin="30,20,30,20">
+        <Grid RowDefinitions="Auto, Auto, Auto, *, Auto, Auto" Margin="30,20,30,20">
 
             <StackPanel Grid.Row="0" Margin="0,0,0,20">
                 <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
@@ -130,7 +130,7 @@
                 </Grid>
             </Border>
 
-            <StackPanel Grid.Row="4" Margin="0,15,0,0" Spacing="12">
+            <StackPanel Grid.Row="5" Margin="0,15,0,0" Spacing="12">
 
                 <Grid ColumnDefinitions="*, Auto">
                     <TextBlock x:Name="StatusLabel" Text="Ready to start" VerticalAlignment="Center" Foreground="#64748B" FontWeight="Medium"/>
@@ -151,15 +151,20 @@
                 </Grid>
             </StackPanel>
 
-            <Expander Grid.Row="3" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="20" Background="#EEF2FF" CornerRadius="8">
+            <Expander Grid.Row="4" Margin="0,12,0,0" Background="#EEF2FF" CornerRadius="8" Padding="5">
                 <Expander.Header>
-                    <TextBlock Text="System Log" FontSize="12" Foreground="#6366F1"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="&#x2261;" FontSize="14" FontWeight="Bold" Foreground="#6366F1"/>
+                        <TextBlock Text="System Log" FontSize="12" Foreground="#6366F1" FontWeight="SemiBold"/>
+                    </StackPanel>
                 </Expander.Header>
-                <Grid RowDefinitions="Auto, 150">
-                    <Button x:Name="ClearLogButton" Content="Clear" FontSize="10" HorizontalAlignment="Right" Margin="0,0,10,0"/>
+                <Grid RowDefinitions="Auto, 150" Margin="10,10,10,5">
+                    <Button x:Name="ClearLogButton" Content="Clear" FontSize="10" HorizontalAlignment="Right" Margin="0,0,0,4"/>
                     <TextBox x:Name="StatusLog" Grid.Row="1" IsReadOnly="True"
-                             Background="White" BorderThickness="0"
-                             FontFamily="Consolas" FontSize="11"/>
+                             Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6"
+                             TextWrapping="Wrap" Padding="6"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             FontFamily="Consolas, Menlo, monospace" FontSize="11"/>
                 </Grid>
             </Expander>
 

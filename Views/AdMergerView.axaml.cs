@@ -388,6 +388,19 @@ public partial class AdMergerView : UserControl
                 var inTrayRecords = _csvService.LoadInTrayRecords(inTrayPath);
                 var appRecords    = _csvService.LoadApplicationRecords(downloadedReportPath);
 
+                // Diagnostics — reveals whether the report downloaded/parsed and why matches fail.
+                LogStatus($"Loaded {inTrayRecords.Count} in-tray record(s); {appRecords.Count} application record(s) from report.");
+                try
+                {
+                    var firstLine = File.ReadLines(downloadedReportPath).FirstOrDefault() ?? "(empty file)";
+                    LogStatus($"Report header row: {firstLine[..Math.Min(300, firstLine.Length)]}");
+                    if (appRecords.Count > 0)
+                        LogStatus($"First report Applicant ID: '{appRecords[0].ApplicantID}'");
+                    if (inTrayRecords.Count > 0)
+                        LogStatus($"First in-tray Student No: '{inTrayRecords[0].StudentNo}'");
+                }
+                catch (Exception hx) { LogStatus($"Could not inspect report: {hx.Message}"); }
+
                 await Dispatcher.UIThread.InvokeAsync(() => {
                     ProcessingItems.Clear();
                     foreach (var r in inTrayRecords)
@@ -445,12 +458,26 @@ public partial class AdMergerView : UserControl
                     });
                 }
 
-                _csvService.GenerateOutputFiles(outputRecords, _outputFolderPath, outputSettings);
+                var outputPaths = _csvService.GenerateOutputFiles(outputRecords, _outputFolderPath, outputSettings);
 
                 if (!token.IsCancellationRequested)
                 {
                     await Dispatcher.UIThread.InvokeAsync(async () =>
                     {
+                        // Nothing matched → nothing written. DO NOT delete the user's source file;
+                        // keep the report so we can inspect its columns.
+                        if (outputRecords.Count == 0 || outputPaths.Count == 0)
+                        {
+                            string debugCopy = Path.Combine(_outputFolderPath, $"UNMATCHED_DeptReport_{DateTime.Now:HHmmss}.csv");
+                            try { File.Copy(downloadedReportPath!, debugCopy, overwrite: true); } catch { }
+                            LogStatus($"No records matched — in-tray file kept. Report copied to: {debugCopy}");
+                            await ShowMessageBoxAsync("No matches found",
+                                $"The report downloaded, but 0 of {inTrayRecords.Count} applicant(s) matched by student number, " +
+                                $"so no Excel file was produced.\n\nYour in-tray file was NOT deleted.\n\n" +
+                                $"The downloaded report was saved here so we can check its columns:\n{debugCopy}");
+                            return;
+                        }
+
                         PlayConfirmationSound();
 
                         // Phase 3 — delete downloaded report and in-tray file
@@ -471,8 +498,10 @@ public partial class AdMergerView : UserControl
                         if (countThird > 0) summaryList += $"\n{countThird}\t(Third Class)";
                         if (countOther > 0) summaryList += $"\n{countOther}\t(Other / Ungraded)";
 
+                        var savedNames = string.Join("\n", outputPaths.Select(Path.GetFileName));
                         await ShowMessageBoxAsync("Success",
-                            $"Processing complete!\n\n{summaryList}\n\nExcel file(s) saved at:\n{_outputFolderPath}");
+                            $"Processing complete! {outputRecords.Count} record(s) matched.\n\n{summaryList}\n\n" +
+                            $"Saved to {_outputFolderPath}:\n{savedNames}");
                     });
                 }
             }, token);
