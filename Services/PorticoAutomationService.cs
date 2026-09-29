@@ -23,6 +23,10 @@ public class PorticoAutomationService : IPorticoAutomationService
 
     public bool DebugMode { get; set; } = false;
 
+    // When set (e.g. "2026/27"), SearchForStudentAsync selects that academic year in the
+    // Portico "Year" dropdown before searching. Null = default "Current Applications".
+    public string? TargetAcademicYear { get; set; } = null;
+
     private readonly Dictionary<string, string> _shortToLongProgCodes = new(StringComparer.OrdinalIgnoreCase)
     {
         { "AIBH", "TMSARTSINT03" },
@@ -244,7 +248,13 @@ public class PorticoAutomationService : IPorticoAutomationService
         if (_page == null) return;
         
         LogStatus($"Searching: {studentNo}");
-        
+
+        // Past-applicant mode: switch the "Year" dropdown to the target academic year
+        // before searching. The search tab defaults back to "Current Applications" on each
+        // visit, so this must run for every student.
+        if (!string.IsNullOrWhiteSpace(TargetAcademicYear))
+            await SelectAcademicYearAsync(TargetAcademicYear);
+
         var radioLabel = _page.Locator("text=Student Number").First;
         if (await radioLabel.IsVisibleAsync()) 
             await radioLabel.ClickAsync();
@@ -279,10 +289,55 @@ public class PorticoAutomationService : IPorticoAutomationService
         await Task.Delay(500);
     }
 
+    // Selects the academic year in the Portico search "Year" dropdown.
+    // Matches the <option> whose text contains the target year (e.g. "2026/27").
+    private async Task SelectAcademicYearAsync(string yearText)
+    {
+        if (_page == null) return;
+
+        LogStatus($"Selecting academic year '{yearText}' in Year dropdown...");
+
+        // Give the search form a moment to render its dropdowns.
+        try
+        {
+            await _page.WaitForSelectorAsync("select", new PageWaitForSelectorOptions { Timeout = 10000 });
+        }
+        catch
+        {
+            throw new Exception("Year dropdown did not appear on the search page.");
+        }
+
+        var jsResult = await _page.EvaluateAsync<string>(@"
+            (target) => {
+                const selects = Array.from(document.querySelectorAll('select'));
+                // Find the dropdown that actually contains an academic-year option.
+                for (const select of selects) {
+                    for (let i = 0; i < select.options.length; i++) {
+                        if (select.options[i].text.includes(target)) {
+                            select.selectedIndex = i;
+                            select.value = select.options[i].value;
+                            select.dispatchEvent(new Event('change', { bubbles: true }));
+                            return 'SUCCESS: ' + select.options[i].text;
+                        }
+                    }
+                }
+                return 'FAILED: No option containing ""' + target + '"" found in any dropdown.';
+            }
+        ", yearText);
+
+        LogStatus(jsResult);
+
+        if (!jsResult.StartsWith("SUCCESS"))
+            throw new Exception($"Could not select academic year '{yearText}'. {jsResult}");
+
+        // Let any year-driven form refresh settle before continuing.
+        await Task.Delay(500);
+    }
+
     private async Task ClickStudentLinkAsync(StudentRecord student)
     {
         if (_page == null) return;
-        
+
         LogStatus($"Looking for student {student.StudentNo} with Prog '{student.Programme}'");
 
         try 

@@ -11,6 +11,11 @@ public interface IPorticoAutomationService
     
     bool DebugMode { get; set; }
     bool IsInitialised { get; }
+
+    // When set (e.g. "2026/27"), each student search first selects that academic year
+    // in the Portico "Year" dropdown instead of the default "Current Applications".
+    // Left null by the main Portico tab so its behaviour is unchanged.
+    string? TargetAcademicYear { get; set; }
     
     Task InitialiseAsync(AppConfig config);
     Task<bool> LoginAsync();

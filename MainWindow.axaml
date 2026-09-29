@@ -290,6 +290,11 @@
                     <views:IsoView />
                 </TabItem>
 
+                <!-- Tab 4: Portico Past — same as Portico but targets the 2026/27 (past) cohort -->
+                <TabItem Header="🕓  Portico Past">
+                    <views:PorticoPastView />
+                </TabItem>
+
             </TabControl>
 
             <!-- Footer -->
