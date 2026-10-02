@@ -45,6 +45,7 @@ public class ExcelService : IExcelService
         int qualityRankCol = -1;
         int personalTutorCol = -1;
         int patRequiredCol = -1;
+        int routeCol = -1;
 
         int headerRow = 1;
         int colCount = worksheet.Dimension?.Columns ?? 0;
@@ -107,6 +108,10 @@ public class ExcelService : IExcelService
             // PAT tab: the "PAT Required" column — an "N" here means skip the record.
             if (patRequiredCol == -1 && header == "pat required")
                 patRequiredCol = col;
+
+            // PAT tab: the "Route" column (programme name used to derive the Portico route code).
+            if (routeCol == -1 && header == "route")
+                routeCol = col;
         }
 
         for (int col = 1; col <= colCount; col++)
@@ -122,6 +127,9 @@ public class ExcelService : IExcelService
 
             if (patRequiredCol == -1 && header.Contains("pat") && header.Contains("required"))
                 patRequiredCol = col;
+
+            if (routeCol == -1 && header.Contains("route"))
+                routeCol = col;
             if (decisionCol == -1 && header.Contains("decision")) decisionCol = col;
 
             if (programmeCol == -1 && (header == "prog" || header == "progcode" || header == "prog code" || header == "progshort" || header == "route"))
@@ -201,6 +209,7 @@ public class ExcelService : IExcelService
                 ApplicationQualityRank = qualityRankCol > 0 ? worksheet.Cells[row, qualityRankCol].Value?.ToString()?.Trim() ?? "" : "",
                 PersonalTutor = personalTutorCol > 0 ? worksheet.Cells[row, personalTutorCol].Value?.ToString()?.Trim() ?? "" : "",
                 PatRequired = patRequiredCol > 0 ? worksheet.Cells[row, patRequiredCol].Value?.ToString()?.Trim() ?? "" : "",
+                Route = routeCol > 0 ? worksheet.Cells[row, routeCol].Value?.ToString()?.Trim() ?? "" : "",
             };
 
             if (students.Count < 5)
@@ -247,6 +256,7 @@ public class ExcelService : IExcelService
         int qualityRankCol = -1;
         int personalTutorCol = -1;
         int patRequiredCol = -1;
+        int routeCol = -1;
 
         // Pass 1: exact match
         for (int col = 0; col < headers.Length; col++)
@@ -299,6 +309,10 @@ public class ExcelService : IExcelService
             // PAT tab: the "PAT Required" column — an "N" here means skip the record.
             if (patRequiredCol == -1 && header == "pat required")
                 patRequiredCol = col;
+
+            // PAT tab: the "Route" column (programme name used to derive the Portico route code).
+            if (routeCol == -1 && header == "route")
+                routeCol = col;
         }
 
         // Pass 2: fuzzy match
@@ -315,6 +329,9 @@ public class ExcelService : IExcelService
 
             if (patRequiredCol == -1 && header.Contains("pat") && header.Contains("required"))
                 patRequiredCol = col;
+
+            if (routeCol == -1 && header.Contains("route"))
+                routeCol = col;
             if (decisionCol == -1 && header.Contains("decision")) decisionCol = col;
 
             if (programmeCol == -1 && (header == "prog" || header == "progcode" || header == "prog code" || header == "progshort" || header == "route"))
@@ -397,6 +414,7 @@ public class ExcelService : IExcelService
                 ApplicationQualityRank = qualityRankCol >= 0 && qualityRankCol < fields.Length ? fields[qualityRankCol].Trim() : "",
                 PersonalTutor = personalTutorCol >= 0 && personalTutorCol < fields.Length ? fields[personalTutorCol].Trim() : "",
                 PatRequired = patRequiredCol >= 0 && patRequiredCol < fields.Length ? fields[patRequiredCol].Trim() : "",
+                Route = routeCol >= 0 && routeCol < fields.Length ? fields[routeCol].Trim() : "",
             };
 
             if (students.Count < 5)

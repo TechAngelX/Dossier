@@ -27,6 +27,10 @@ public class StudentRecord
 
     // PAT tab — the "PAT Required" column. An "N" here means skip this record.
     public string PatRequired { get; set; } = string.Empty;
+
+    // PAT tab — the "Route" column (programme name, e.g. "MSc Data Science and Machine Learning").
+    // Used to derive the Portico programme/route code (TMSDATSMLE01, etc.) entered once per spreadsheet.
+    public string Route { get; set; } = string.Empty;
     public string Name => $"{Forename} {Surname}".Trim();
     public string ReceivedDateDisplay => ReceivedDate?.ToString("dd/MM/yyyy") ?? "";
     public string DueDateDisplay => DueDate?.ToString("dd/MM/yyyy") ?? "";

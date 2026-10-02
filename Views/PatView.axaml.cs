@@ -45,7 +45,6 @@ public partial class PatView : UserControl
     private DataGrid _studentGrid = null!;
     private TextBlock _studentCountText = null!;
     private Border _actionPanel = null!;
-    private CheckBox _unassignedOnlyCheckBox = null!;
     private CheckBox _debugModeCheckBox = null!;
     private Button _startButton = null!;
     private Button _stopButton = null!;
@@ -75,7 +74,6 @@ public partial class PatView : UserControl
         _studentGrid = this.FindControl<DataGrid>("StudentGrid")!;
         _studentCountText = this.FindControl<TextBlock>("StudentCountText")!;
         _actionPanel = this.FindControl<Border>("ActionPanel")!;
-        _unassignedOnlyCheckBox = this.FindControl<CheckBox>("UnassignedOnlyCheckBox")!;
         _debugModeCheckBox = this.FindControl<CheckBox>("DebugModeCheckBox")!;
         _startButton = this.FindControl<Button>("StartButton")!;
         _stopButton = this.FindControl<Button>("StopButton")!;
@@ -250,6 +248,23 @@ public partial class PatView : UserControl
     private static bool ShouldProcess(StudentRecord s) =>
         !string.IsNullOrWhiteSpace(s.PersonalTutor) && !IsNotRequired(s);
 
+    // Derives the Portico programme/route code entered in the Programme filter box, from the Route
+    // column (falling back to Programme). Returns null if the value can't be recognised.
+    private static string? ResolveProgrammeCode(StudentRecord s)
+    {
+        var raw = (!string.IsNullOrWhiteSpace(s.Route) ? s.Route : s.Programme)?.Trim() ?? "";
+        var p = raw.ToLowerInvariant();
+        if (p.Length == 0) return null;
+        if (p.StartsWith("tms")) return raw.ToUpperInvariant();          // already a Portico code
+        if (p.Contains("data science")) return "TMSDATSMLE01";          // DSML
+        if (p.Contains("computational statistic")) return "TMSCOMSSML01"; // CSML
+        if (p.Contains("machine learning")) return "TMSCOMSMCL01";       // ML
+        if (p == "dsml") return "TMSDATSMLE01";
+        if (p == "csml") return "TMSCOMSSML01";
+        if (p == "ml") return "TMSCOMSMCL01";
+        return null;                                                     // unrecognised
+    }
+
     private void PopulateStudents(List<StudentRecord> students)
     {
         _students = new ObservableCollection<StudentRecord>(students);
@@ -335,34 +350,61 @@ public partial class PatView : UserControl
                 return;
             }
 
-            var unassignedOnly = _unassignedOnlyCheckBox.IsChecked ?? false;
-            processingWindow.LogMessage(unassignedOnly
-                ? "Opening Personal Tutor Allocations (Unassigned Students only)..."
-                : "Opening Personal Tutor Allocations (All Students)...");
-            await _automationService.NavigateToPersonalTutorAllocationsAsync(unassignedOnly);
+            processingWindow.LogMessage("Opening Personal Tutor Allocations...");
+            await _automationService.NavigateToPersonalTutorAllocationsAsync();
 
-            if (debugMode)
-            {
-                processingWindow.LogMessage("DEBUG MODE: processing only the FIRST student, then pausing.");
-                await _automationService.ProcessStudentPatAsync(queue.First());
-                processingWindow.LogMessage("DEBUG MODE COMPLETE: browser paused for inspection.");
-                processingWindow.UpdateFooterStatus("Debug mode complete - browser paused");
-                processingWindow.ProcessingComplete();
-                RefreshStudentGrid();
-                return;
-            }
+            // One-off per spreadsheet: set the Department.
+            processingWindow.LogMessage("Setting Department = Computer Science (once)...");
+            await _automationService.ApplyPatDepartmentAsync("Computer Science");
 
-            foreach (var student in queue)
+            // Group by Portico route code so the Programme filter is set once per programme.
+            var groups = queue.GroupBy(ResolveProgrammeCode).ToList();
+
+            foreach (var group in groups)
             {
-                if (_cancellationTokenSource.Token.IsCancellationRequested)
+                if (_cancellationTokenSource.Token.IsCancellationRequested) break;
+
+                var code = group.Key;
+                var members = group.ToList();
+
+                if (string.IsNullOrWhiteSpace(code))
                 {
-                    processingWindow.LogMessage("Processing cancelled by user.");
-                    processingWindow.UpdateFooterStatus("Cancelled");
-                    break;
+                    foreach (var s in members)
+                    {
+                        s.Status = ProcessingStatus.Failed;
+                        s.ErrorMessage = "Unrecognised Route — cannot derive the Portico programme code.";
+                        processingWindow.UpdateStudentStatus(s.StudentNo, s.Status, s.ErrorMessage);
+                    }
+                    processingWindow.LogMessage($"Skipped {members.Count} student(s) with an unrecognised Route value.");
+                    RefreshStudentGrid();
+                    continue;
                 }
 
-                await _automationService.ProcessStudentPatAsync(student);
-                RefreshStudentGrid();
+                processingWindow.LogMessage($"Setting Programme = {code} for {members.Count} student(s)...");
+                await _automationService.ApplyPatProgrammeAsync(code);
+
+                foreach (var student in members)
+                {
+                    if (_cancellationTokenSource.Token.IsCancellationRequested)
+                    {
+                        processingWindow.LogMessage("Processing cancelled by user.");
+                        processingWindow.UpdateFooterStatus("Cancelled");
+                        break;
+                    }
+
+                    await _automationService.ProcessStudentPatAsync(student);
+                    RefreshStudentGrid();
+
+                    if (debugMode)
+                    {
+                        processingWindow.LogMessage("DEBUG MODE: stopped after the first student — browser paused for inspection.");
+                        processingWindow.UpdateFooterStatus("Debug mode complete - browser paused");
+                        processingWindow.ProcessingComplete();
+                        return;
+                    }
+                }
+
+                if (_cancellationTokenSource.Token.IsCancellationRequested) break;
             }
 
             processingWindow.LogMessage("Processing complete.");

@@ -25,9 +25,14 @@ public interface IPorticoAutomationService
     Task ProcessStudentMergeOverviewAsync(StudentRecord student, string downloadPath);
 
     // PAT (Personal Tutor Allocations) flow.
-    // NavigateToPersonalTutorAllocationsAsync opens the allocations page from the My Portico home;
-    // ProcessStudentPatAsync enters one student's number + tutor code and clicks "Apply New Criteria".
-    Task<bool> NavigateToPersonalTutorAllocationsAsync(bool unassignedOnly = false);
+    //   1. NavigateToPersonalTutorAllocationsAsync — open the page from the My Portico home (All Students).
+    //   2. ApplyPatDepartmentAsync — set the Department (once per spreadsheet) and Apply New Criteria.
+    //   3. ApplyPatProgrammeAsync — set the Programme/route code (once per programme) and Apply New Criteria.
+    //   4. ProcessStudentPatAsync — per student: enter Student ID, Apply, type the tutor code into the
+    //      student's row Personal Tutor box, Save, then OK.
+    Task<bool> NavigateToPersonalTutorAllocationsAsync();
+    Task ApplyPatDepartmentAsync(string department);
+    Task ApplyPatProgrammeAsync(string programmeCode);
     Task ProcessStudentPatAsync(StudentRecord student);
     Task<string> DownloadDepartmentReportAsync(string fullProgrammeName, string downloadDir);
     Task<string> DownloadIndividualStudentOverviewCsvAsync(string studentNumber, string downloadDir);

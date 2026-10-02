@@ -25,7 +25,7 @@
                     <StackPanel Spacing="2">
                         <TextBlock Text="Personal Tutor Allocations (PAT)"
                                    FontSize="15" FontWeight="Bold" Foreground="#3730A3"/>
-                        <TextBlock Text="For each row, enters the Student ID and the tutor code (PIVOT column) on Portico's Personal Tutor Allocations page, then clicks Apply New Criteria."
+                        <TextBlock Text="Sets Department + Route once, then per student: enters the Student ID, types the tutor code (PIVOT column) on the student's row, Saves and confirms."
                                    FontSize="12" Foreground="#4F46E5" TextWrapping="Wrap"/>
                     </StackPanel>
                 </StackPanel>
@@ -143,12 +143,8 @@
                     Padding="15"
                     IsVisible="False">
                 <StackPanel Spacing="15">
-                    <CheckBox x:Name="UnassignedOnlyCheckBox"
-                              Content="Use 'Unassigned Students' sub-tab (⚠ has no Personal Tutor field — incompatible with Apply New Criteria; leave OFF)"
-                              IsChecked="False"
-                              Foreground="#B45309"/>
                     <CheckBox x:Name="DebugModeCheckBox"
-                              Content="🐛 Debug Mode (process 1 record and PAUSE before clicking Apply New Criteria)"
+                              Content="🐛 Debug Mode (process 1 record and PAUSE before clicking Save)"
                               Foreground="#DC3545"
                               FontWeight="SemiBold"/>
                     <StackPanel Orientation="Horizontal" Spacing="10">
