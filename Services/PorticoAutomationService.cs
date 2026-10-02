@@ -827,6 +827,307 @@ public class PorticoAutomationService : IPorticoAutomationService
         StudentProcessed?.Invoke(this, student);
     }
 
+    // ============================ PAT — Personal Tutor Allocations ============================
+    //
+    // Flow (from the My Portico home, after login):
+    //   1. Click "Personal Tutor Allocations" (Personal Tutors container) — one-off per run.
+    //   2. For each student: clear the filter row, type the student number into the "Student ID or
+    //      Name" box and select the suggestion, type the tutor code into the "Personal Tutor" box
+    //      and accept the suggested staff member, then click "Apply New Criteria".
+    //
+    // The page is a SITS/eVision filter grid. Selectors here are deliberately defensive (JS text
+    // matching + placeholder lookups + heavy logging) because the live page can only be tuned
+    // against an authenticated Portico session. If a step can't find its control it throws with a
+    // message, and the per-student catch recovers by clearing the filters for the next row.
+
+    public async Task<bool> NavigateToPersonalTutorAllocationsAsync(bool unassignedOnly = false)
+    {
+        if (_page == null) throw new InvalidOperationException("Service not initialised.");
+
+        LogStatus("Navigating to Personal Tutor Allocations...");
+
+        // Make sure we're on the My Portico home where the "Personal Tutors" container lives.
+        bool homeVisible = false;
+        try { homeVisible = await _page.Locator("text=My Portico").First.IsVisibleAsync(); } catch { }
+        if (!homeVisible)
+        {
+            await _page.GotoAsync(_config?.PorticoUrl ?? "https://evision.ucl.ac.uk/urd/sits.urd/run/siw_lgn");
+            await _page.WaitForSelectorAsync("text=My Portico", new PageWaitForSelectorOptions { Timeout = 30000 });
+        }
+
+        // Click the "Personal Tutor Allocations" link — the exact one, not "... User Guide",
+        // "... Export to Excel Report" or the Academic Tutoring dashboard.
+        var clicked = await _page.EvaluateAsync<string>(@"() => {
+            const norm = s => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+            const target = 'personal tutor allocations';
+            const links = Array.from(document.querySelectorAll('a'));
+            for (const a of links) { if (norm(a.textContent) === target) { a.scrollIntoView(); a.click(); return 'CLICKED_EXACT'; } }
+            for (const a of links) {
+                const t = norm(a.textContent);
+                if (t.startsWith(target) && !t.includes('guide') && !t.includes('export')) { a.scrollIntoView(); a.click(); return 'CLICKED_STARTS'; }
+            }
+            return 'NOT_FOUND';
+        }");
+        LogStatus($"[PAT] Allocations link: {clicked}");
+        if (clicked == "NOT_FOUND")
+            throw new Exception("Could not find the 'Personal Tutor Allocations' link on the My Portico home page.");
+
+        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 30000 });
+        await Task.Delay(1500);
+
+        // Confirm the allocations filter grid rendered (the "Personal Tutor" filter box is a good marker).
+        try
+        {
+            await _page.WaitForSelectorAsync("text=Personal Tutor Allocations", new PageWaitForSelectorOptions { Timeout = 15000 });
+        }
+        catch
+        {
+            LogStatus("[PAT] WARNING: 'Personal Tutor Allocations' heading not detected — the page may use an iframe or a different layout.");
+        }
+
+        // Choose the sub-tab. IMPORTANT: only the "All Students" tab has a "Personal Tutor" filter
+        // field, which the per-student "Apply New Criteria" method relies on. The "Unassigned
+        // Students" tab replaces that column with a "Selection" checkbox + a bottom "Tutor to assign"
+        // box (a different mechanism we don't drive). The browser persists between runs, so we always
+        // click the intended sub-tab explicitly to recover from whatever the last run left selected.
+        var targetTab = unassignedOnly ? "unassigned students" : "all students";
+        var sub = await _page.EvaluateAsync<string>(@"(target) => {
+            const norm = s => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+            const links = Array.from(document.querySelectorAll('a'));
+            for (const a of links) { if (norm(a.textContent) === target) { a.scrollIntoView(); a.click(); return 'CLICKED'; } }
+            return 'NOT_FOUND';
+        }", targetTab);
+
+        if (sub == "CLICKED")
+        {
+            LogStatus($"[PAT] Selected '{targetTab}' sub-tab.");
+            await _page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 30000 });
+            await Task.Delay(1200);
+        }
+        else
+        {
+            // "All Students" is usually plain text (not a link) when it's already the active tab,
+            // so NOT_FOUND there just means we're already on it.
+            LogStatus(unassignedOnly
+                ? "[PAT] WARNING: could not find the 'Unassigned Students' link — continuing on the current view."
+                : "[PAT] Already on the 'All Students' tab.");
+        }
+
+        if (unassignedOnly)
+            LogStatus("[PAT] NOTE: the Unassigned Students tab has no 'Personal Tutor' filter field — the Apply New Criteria method needs 'All Students'.");
+
+        LogStatus("[PAT] On Personal Tutor Allocations page.");
+        return true;
+    }
+
+    public async Task ProcessStudentPatAsync(StudentRecord student)
+    {
+        if (_page == null) throw new InvalidOperationException("Service not initialised.");
+
+        student.Status = ProcessingStatus.Processing;
+        StudentProcessed?.Invoke(this, student);
+
+        try
+        {
+            LogStatus($"=== PAT: {student.StudentNo} → {student.PersonalTutor} ===");
+
+            if (string.IsNullOrWhiteSpace(student.PersonalTutor))
+                throw new Exception("No Personal Tutor code (PIVOT column) for this student.");
+
+            // Step 0: reset the filter row so the previous student's values don't linger.
+            await ClearPatFiltersAsync();
+
+            // Step 1: enter the student number and select the suggestion.
+            await EnterPatStudentAsync(student.StudentNo);
+
+            // Step 2: enter the tutor code and accept the matching staff member.
+            await EnterPatTutorAsync(student.PersonalTutor);
+
+            // Step 3: apply.
+            if (DebugMode)
+            {
+                LogStatus("[PAT] DEBUG MODE: paused before 'Apply New Criteria'. Verify the Student ID and Personal Tutor fields, then click it manually.");
+                student.Status = ProcessingStatus.Success;
+                StudentProcessed?.Invoke(this, student);
+                return;
+            }
+
+            await ClickApplyNewCriteriaAsync();
+
+            student.Status = ProcessingStatus.Success;
+            LogStatus($"=== SUCCESS: {student.StudentNo} allocated to {student.PersonalTutor} ===");
+        }
+        catch (Exception ex)
+        {
+            student.Status = ProcessingStatus.Failed;
+            student.ErrorMessage = ex.Message;
+            LogStatus($"=== FAILED {student.StudentNo}: {ex.Message} ===");
+
+            // Recover: try to get the filter row back to a clean state for the next student.
+            try { await ClearPatFiltersAsync(); } catch { LogStatus("[PAT] Recovery (clear filters) failed."); }
+        }
+
+        StudentProcessed?.Invoke(this, student);
+    }
+
+    // Clicks the "Clear filters" link if it is present (it appears once any filter is applied).
+    private async Task ClearPatFiltersAsync()
+    {
+        if (_page == null) return;
+
+        var cleared = await _page.EvaluateAsync<string>(@"() => {
+            const norm = s => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+            const links = Array.from(document.querySelectorAll('a, button'));
+            for (const el of links) { if (norm(el.textContent) === 'clear filters') { el.click(); return 'CLEARED'; } }
+            return 'NO_CLEAR_LINK';
+        }");
+
+        if (cleared == "CLEARED")
+        {
+            LogStatus("[PAT] Cleared existing filters.");
+            await _page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 20000 });
+            await Task.Delay(800);
+        }
+    }
+
+    // Finds a visible filter input by trying each placeholder candidate (case-insensitive substring).
+    private async Task<ILocator?> ResolvePatInputAsync(string[] placeholderCandidates)
+    {
+        if (_page == null) return null;
+
+        foreach (var ph in placeholderCandidates)
+        {
+            var loc = _page.GetByPlaceholder(ph, new() { Exact = false }).First;
+            try
+            {
+                if (await loc.CountAsync() > 0 && await loc.IsVisibleAsync())
+                    return loc;
+            }
+            catch { /* try the next candidate */ }
+        }
+        return null;
+    }
+
+    private async Task EnterPatStudentAsync(string studentNo)
+    {
+        if (_page == null) return;
+
+        LogStatus($"[PAT] Entering student number {studentNo}...");
+
+        var input = await ResolvePatInputAsync(new[] { "Student ID or Name", "Student ID", "Student" });
+        if (input == null)
+            throw new Exception("Could not find the 'Student ID or Name' filter field.");
+
+        await input.ClickAsync();
+        await input.FillAsync("");
+        await _page.Keyboard.TypeAsync(studentNo, new KeyboardTypeOptions { Delay = 80 });
+        await Task.Delay(1500);
+
+        // The typeahead offers a row like "26196420 Diego Arevalo Fernandez DAREV10" — click the one
+        // whose text starts with this student number so the record is actually selected.
+        var suggestion = _page.Locator("li, tr, td, div, a")
+            .Filter(new() { HasTextRegex = new System.Text.RegularExpressions.Regex(
+                $@"^\s*{System.Text.RegularExpressions.Regex.Escape(studentNo)}\b") })
+            .Last;
+        try
+        {
+            if (await suggestion.IsVisibleAsync())
+            {
+                await suggestion.ClickAsync();
+                LogStatus("[PAT] Selected student suggestion.");
+            }
+            else
+            {
+                await input.PressAsync("ArrowDown");
+                await Task.Delay(300);
+                await input.PressAsync("Enter");
+                LogStatus("[PAT] Student suggestion not visible — accepted via keyboard.");
+            }
+        }
+        catch
+        {
+            try { await input.PressAsync("Enter"); } catch { }
+        }
+        await Task.Delay(800);
+    }
+
+    private async Task EnterPatTutorAsync(string tutorCode)
+    {
+        if (_page == null) return;
+
+        LogStatus($"[PAT] Entering personal tutor code {tutorCode}...");
+
+        var input = await ResolvePatInputAsync(new[] { "Personal Tutor" });
+        if (input == null)
+            throw new Exception("Could not find the 'Personal Tutor' filter field.");
+
+        await input.ClickAsync();
+        await input.FillAsync("");
+        await _page.Keyboard.TypeAsync(tutorCode, new KeyboardTypeOptions { Delay = 80 });
+        await Task.Delay(1500);
+
+        // Typing the code surfaces the resolved staff member (e.g. "Mark Herbster") as a suggestion.
+        // Accept it so the field holds a confirmed allocation rather than raw text.
+        bool picked = await ClickFirstSuggestionAsync();
+        if (!picked)
+        {
+            try
+            {
+                await input.PressAsync("ArrowDown");
+                await Task.Delay(300);
+                await input.PressAsync("Enter");
+                LogStatus("[PAT] Tutor suggestion accepted via keyboard.");
+            }
+            catch { LogStatus("[PAT] Left typed tutor code as-is (no suggestion to accept)."); }
+        }
+        else
+        {
+            LogStatus("[PAT] Selected tutor suggestion.");
+        }
+        await Task.Delay(600);
+    }
+
+    // Clicks the first item in whichever autocomplete list is currently visible. Returns false if none.
+    private async Task<bool> ClickFirstSuggestionAsync()
+    {
+        if (_page == null) return false;
+
+        return await _page.EvaluateAsync<bool>(@"() => {
+            const containers = document.querySelectorAll(
+                'ul.ui-autocomplete, .ui-menu, .autocomplete-suggestions, [class*=autocomplete], [role=listbox]');
+            for (const list of containers) {
+                if (list.offsetParent === null) continue; // not visible
+                const item = list.querySelector('li, .suggestion, [role=option], a, div');
+                if (item) { item.scrollIntoView(); item.click(); return true; }
+            }
+            return false;
+        }");
+    }
+
+    private async Task ClickApplyNewCriteriaAsync()
+    {
+        if (_page == null) return;
+
+        LogStatus("[PAT] Clicking 'Apply New Criteria'...");
+        var clicked = await _page.EvaluateAsync<string>(@"() => {
+            const norm = s => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+            const els = document.querySelectorAll('input[type=submit], input[type=button], button, a');
+            for (const el of els) {
+                const t = norm(el.value) || norm(el.textContent);
+                if (t === 'apply new criteria' || t === 'apply criteria' || (t.includes('apply') && t.includes('criteria'))) {
+                    el.scrollIntoView(); el.click(); return 'CLICKED: ' + t;
+                }
+            }
+            return 'NOT_FOUND';
+        }");
+        LogStatus($"[PAT] {clicked}");
+        if (clicked == "NOT_FOUND")
+            throw new Exception("Could not find the 'Apply New Criteria' button.");
+
+        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 30000 });
+        await Task.Delay(1200);
+    }
+
     public async Task<string> DownloadDepartmentReportAsync(string fullProgrammeName, string downloadDir)
     {
         if (_page == null) throw new InvalidOperationException("Service not initialised.");

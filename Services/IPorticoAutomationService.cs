@@ -23,6 +23,12 @@ public interface IPorticoAutomationService
     Task ProcessStudentAcceptAsync(StudentRecord student);
     Task ProcessStudentRejectAsync(StudentRecord student);
     Task ProcessStudentMergeOverviewAsync(StudentRecord student, string downloadPath);
+
+    // PAT (Personal Tutor Allocations) flow.
+    // NavigateToPersonalTutorAllocationsAsync opens the allocations page from the My Portico home;
+    // ProcessStudentPatAsync enters one student's number + tutor code and clicks "Apply New Criteria".
+    Task<bool> NavigateToPersonalTutorAllocationsAsync(bool unassignedOnly = false);
+    Task ProcessStudentPatAsync(StudentRecord student);
     Task<string> DownloadDepartmentReportAsync(string fullProgrammeName, string downloadDir);
     Task<string> DownloadIndividualStudentOverviewCsvAsync(string studentNumber, string downloadDir);
     Task CloseAsync(bool handOffToUser = false);

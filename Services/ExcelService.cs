@@ -43,6 +43,8 @@ public class ExcelService : IExcelService
         int feeStatusCol = -1;
         int ukGradeCol = -1;
         int qualityRankCol = -1;
+        int personalTutorCol = -1;
+        int patRequiredCol = -1;
 
         int headerRow = 1;
         int colCount = worksheet.Dimension?.Columns ?? 0;
@@ -96,6 +98,15 @@ public class ExcelService : IExcelService
             if (qualityRankCol == -1 && (header == "applicationqualityrank" || header == "application quality rank"
                 || header == "at note (ranking)" || header == "atnote(ranking)" || header == "at note ranking" || header == "ranking"))
                 qualityRankCol = col;
+
+            // PAT tab: the tutor code to assign. Matches the PIVOT column (e.g. "2026-27 PAT (PIVOT)").
+            if (personalTutorCol == -1 && (header == "personal tutor" || header == "pat code" || header == "tutor code"
+                || header == "personal tutor allocation" || header == "pat (pivot)"))
+                personalTutorCol = col;
+
+            // PAT tab: the "PAT Required" column — an "N" here means skip the record.
+            if (patRequiredCol == -1 && header == "pat required")
+                patRequiredCol = col;
         }
 
         for (int col = 1; col <= colCount; col++)
@@ -104,6 +115,13 @@ public class ExcelService : IExcelService
             if (string.IsNullOrEmpty(header)) continue;
 
             if (studentNoCol == -1 && header.Contains("student") && header.Contains("no")) studentNoCol = col;
+
+            // "(PIVOT)" uniquely marks the tutor-code column; avoids matching "PAT Required".
+            if (personalTutorCol == -1 && (header.Contains("pivot") || (header.Contains("personal") && header.Contains("tutor"))))
+                personalTutorCol = col;
+
+            if (patRequiredCol == -1 && header.Contains("pat") && header.Contains("required"))
+                patRequiredCol = col;
             if (decisionCol == -1 && header.Contains("decision")) decisionCol = col;
 
             if (programmeCol == -1 && (header == "prog" || header == "progcode" || header == "prog code" || header == "progshort" || header == "route"))
@@ -181,6 +199,8 @@ public class ExcelService : IExcelService
                 FeeStatus = feeStatusCol > 0 ? worksheet.Cells[row, feeStatusCol].Value?.ToString()?.Trim() ?? "" : "",
                 UKGrade = ukGradeCol > 0 ? worksheet.Cells[row, ukGradeCol].Value?.ToString()?.Trim() ?? "" : "",
                 ApplicationQualityRank = qualityRankCol > 0 ? worksheet.Cells[row, qualityRankCol].Value?.ToString()?.Trim() ?? "" : "",
+                PersonalTutor = personalTutorCol > 0 ? worksheet.Cells[row, personalTutorCol].Value?.ToString()?.Trim() ?? "" : "",
+                PatRequired = patRequiredCol > 0 ? worksheet.Cells[row, patRequiredCol].Value?.ToString()?.Trim() ?? "" : "",
             };
 
             if (students.Count < 5)
@@ -225,6 +245,8 @@ public class ExcelService : IExcelService
         int feeStatusCol = -1;
         int ukGradeCol = -1;
         int qualityRankCol = -1;
+        int personalTutorCol = -1;
+        int patRequiredCol = -1;
 
         // Pass 1: exact match
         for (int col = 0; col < headers.Length; col++)
@@ -268,6 +290,15 @@ public class ExcelService : IExcelService
             if (qualityRankCol == -1 && (header == "applicationqualityrank" || header == "application quality rank"
                 || header == "at note (ranking)" || header == "atnote(ranking)" || header == "at note ranking" || header == "ranking"))
                 qualityRankCol = col;
+
+            // PAT tab: the tutor code to assign. Matches the PIVOT column (e.g. "2026-27 PAT (PIVOT)").
+            if (personalTutorCol == -1 && (header == "personal tutor" || header == "pat code" || header == "tutor code"
+                || header == "personal tutor allocation" || header == "pat (pivot)"))
+                personalTutorCol = col;
+
+            // PAT tab: the "PAT Required" column — an "N" here means skip the record.
+            if (patRequiredCol == -1 && header == "pat required")
+                patRequiredCol = col;
         }
 
         // Pass 2: fuzzy match
@@ -277,6 +308,13 @@ public class ExcelService : IExcelService
             if (string.IsNullOrEmpty(header)) continue;
 
             if (studentNoCol == -1 && header.Contains("student") && header.Contains("no")) studentNoCol = col;
+
+            // "(PIVOT)" uniquely marks the tutor-code column; avoids matching "PAT Required".
+            if (personalTutorCol == -1 && (header.Contains("pivot") || (header.Contains("personal") && header.Contains("tutor"))))
+                personalTutorCol = col;
+
+            if (patRequiredCol == -1 && header.Contains("pat") && header.Contains("required"))
+                patRequiredCol = col;
             if (decisionCol == -1 && header.Contains("decision")) decisionCol = col;
 
             if (programmeCol == -1 && (header == "prog" || header == "progcode" || header == "prog code" || header == "progshort" || header == "route"))
@@ -357,6 +395,8 @@ public class ExcelService : IExcelService
                 FeeStatus = feeStatusCol >= 0 && feeStatusCol < fields.Length ? fields[feeStatusCol].Trim() : "",
                 UKGrade = ukGradeCol >= 0 && ukGradeCol < fields.Length ? fields[ukGradeCol].Trim() : "",
                 ApplicationQualityRank = qualityRankCol >= 0 && qualityRankCol < fields.Length ? fields[qualityRankCol].Trim() : "",
+                PersonalTutor = personalTutorCol >= 0 && personalTutorCol < fields.Length ? fields[personalTutorCol].Trim() : "",
+                PatRequired = patRequiredCol >= 0 && patRequiredCol < fields.Length ? fields[patRequiredCol].Trim() : "",
             };
 
             if (students.Count < 5)
