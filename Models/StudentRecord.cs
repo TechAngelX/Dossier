@@ -25,12 +25,20 @@ public class StudentRecord
     // read from the "2026-27 PAT (PIVOT)" column (e.g. "MHERB70").
     public string PersonalTutor { get; set; } = string.Empty;
 
+    // PAT tab — the staff member the code resolved to in Portico's autocomplete
+    // (e.g. "Dmitry Adamskiy"). Captured during allocation; used in the results CSV.
+    public string PersonalTutorName { get; set; } = string.Empty;
+
     // PAT tab — the "PAT Required" column. An "N" here means skip this record.
     public string PatRequired { get; set; } = string.Empty;
 
     // PAT tab — the "Route" column (programme name, e.g. "MSc Data Science and Machine Learning").
     // Used to derive the Portico programme/route code (TMSDATSMLE01, etc.) entered once per spreadsheet.
     public string Route { get; set; } = string.Empty;
+
+    // PAT tab — the Portico programme code read directly from the spreadsheet (e.g. "TMSCOMSDDI19").
+    // When present this is typed straight into Portico's Programme filter, bypassing name→code mapping.
+    public string ProgrammeCode { get; set; } = string.Empty;
     public string Name => $"{Forename} {Surname}".Trim();
     public string ReceivedDateDisplay => ReceivedDate?.ToString("dd/MM/yyyy") ?? "";
     public string DueDateDisplay => DueDate?.ToString("dd/MM/yyyy") ?? "";

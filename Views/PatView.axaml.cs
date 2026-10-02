@@ -13,6 +13,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Dossier.Configuration;
 using Dossier.Models;
 using Dossier.Services;
 using System;
@@ -30,6 +31,9 @@ public partial class PatView : UserControl
     private readonly IExcelService _excelService = new ExcelService();
     private readonly IPorticoAutomationService _automationService = PorticoAutomationService.Shared;
     private readonly AppConfig _config = new AppConfig();
+
+    // PAT reads its data from the "Dashboard-Students" worksheet ONLY — never any other tab.
+    private const string PatSheetName = "Dashboard-Students";
 
     private string _currentFilePath = string.Empty;
     private ObservableCollection<StudentRecord> _students = new();
@@ -189,13 +193,23 @@ public partial class PatView : UserControl
             _dropZoneText.Text = $"Loaded: {Path.GetFileName(filePath)}";
             LogStatus($"Loaded file: {filePath}");
 
-            var sheets = _excelService.GetSheetNames(filePath);
-            _sheetComboBox.ItemsSource = sheets;
-            if (sheets.Count > 0)
-                _sheetComboBox.SelectedIndex = 0;
+            // PAT is hard-pinned to the "Dashboard-Students" tab — no sheet picker.
+            _sheetSelectionPanel.IsVisible = false;
 
-            _sheetSelectionPanel.IsVisible = true;
-            UpdateFooterStatus($"File loaded: {Path.GetFileName(filePath)} — choose a worksheet");
+            var sheets = _excelService.GetSheetNames(filePath);
+            var matchedSheet = sheets.FirstOrDefault(
+                s => s.Trim().Equals(PatSheetName, StringComparison.OrdinalIgnoreCase));
+
+            if (matchedSheet == null)
+            {
+                LogStatus($"Error: this spreadsheet has no '{PatSheetName}' tab. "
+                    + $"PAT reads from the '{PatSheetName}' tab only. Found tabs: {string.Join(", ", sheets)}");
+                UpdateFooterStatus($"No '{PatSheetName}' tab found in {Path.GetFileName(filePath)}");
+                return;
+            }
+
+            PopulateStudents(_excelService.LoadStudentsFromFile(filePath, matchedSheet));
+            UpdateFooterStatus($"File loaded: {Path.GetFileName(filePath)} — read '{matchedSheet}' tab");
             _rootScroller.Offset = new Avalonia.Vector(0, 0);
         }
         catch (Exception ex)
@@ -252,17 +266,21 @@ public partial class PatView : UserControl
     // column (falling back to Programme). Returns null if the value can't be recognised.
     private static string? ResolveProgrammeCode(StudentRecord s)
     {
+        // Prefer the Portico code read straight from the spreadsheet's Programme-code column.
+        var direct = s.ProgrammeCode?.Trim() ?? "";
+        if (direct.Length > 0)
+        {
+            var token = direct.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? direct;
+            if (token.StartsWith("T", StringComparison.OrdinalIgnoreCase))
+                return token.ToUpperInvariant();
+        }
+
+        // Otherwise map the programme/route NAME (or ADMerger short code) to a Portico code via
+        // the shared ProgrammeMapping, so every tab (ADMerger, PAT, Portico, …) stays consistent.
         var raw = (!string.IsNullOrWhiteSpace(s.Route) ? s.Route : s.Programme)?.Trim() ?? "";
-        var p = raw.ToLowerInvariant();
-        if (p.Length == 0) return null;
-        if (p.StartsWith("tms")) return raw.ToUpperInvariant();          // already a Portico code
-        if (p.Contains("data science")) return "TMSDATSMLE01";          // DSML
-        if (p.Contains("computational statistic")) return "TMSCOMSSML01"; // CSML
-        if (p.Contains("machine learning")) return "TMSCOMSMCL01";       // ML
-        if (p == "dsml") return "TMSDATSMLE01";
-        if (p == "csml") return "TMSCOMSSML01";
-        if (p == "ml") return "TMSCOMSMCL01";
-        return null;                                                     // unrecognised
+        if (raw.Length == 0) return null;
+        if (raw.StartsWith("tms", StringComparison.OrdinalIgnoreCase)) return raw.ToUpperInvariant(); // already a code
+        return ProgrammeMapping.GetPorticoCode(raw);
     }
 
     private void PopulateStudents(List<StudentRecord> students)
@@ -357,33 +375,38 @@ public partial class PatView : UserControl
             processingWindow.LogMessage("Setting Department = Computer Science (once)...");
             await _automationService.ApplyPatDepartmentAsync("Computer Science");
 
-            // Group by Portico route code so the Programme filter is set once per programme.
-            var groups = queue.GroupBy(ResolveProgrammeCode).ToList();
+            // One-off per spreadsheet: set the Programme code, then press "Apply New Criteria" — ONCE.
+            // The spreadsheet's Programme column supplies the Portico code directly (e.g. TMSCOMSDDI19).
+            var distinctCodes = queue
+                .Select(ResolveProgrammeCode)
+                .Where(c => !string.IsNullOrWhiteSpace(c))
+                .Select(c => c!)
+                .Distinct()
+                .ToList();
 
-            foreach (var group in groups)
+            if (distinctCodes.Count == 0)
             {
-                if (_cancellationTokenSource.Token.IsCancellationRequested) break;
-
-                var code = group.Key;
-                var members = group.ToList();
-
-                if (string.IsNullOrWhiteSpace(code))
+                foreach (var s in queue)
                 {
-                    foreach (var s in members)
-                    {
-                        s.Status = ProcessingStatus.Failed;
-                        s.ErrorMessage = "Unrecognised Route — cannot derive the Portico programme code.";
-                        processingWindow.UpdateStudentStatus(s.StudentNo, s.Status, s.ErrorMessage);
-                    }
-                    processingWindow.LogMessage($"Skipped {members.Count} student(s) with an unrecognised Route value.");
-                    RefreshStudentGrid();
-                    continue;
+                    s.Status = ProcessingStatus.Failed;
+                    s.ErrorMessage = "No Portico programme code — add a Programme code column (e.g. TMSCOMSDDI19) or a recognised Route.";
+                    processingWindow.UpdateStudentStatus(s.StudentNo, s.Status, s.ErrorMessage);
                 }
+                RefreshStudentGrid();
+                processingWindow.LogMessage("No programme code could be resolved — nothing processed.");
+            }
+            else
+            {
+                if (distinctCodes.Count > 1)
+                    processingWindow.LogMessage(
+                        $"WARNING: {distinctCodes.Count} different programme codes found ({string.Join(", ", distinctCodes)}). "
+                        + "PAT sets the Programme once per spreadsheet — using the first; students on the others may not appear.");
 
-                processingWindow.LogMessage($"Setting Programme = {code} for {members.Count} student(s)...");
-                await _automationService.ApplyPatProgrammeAsync(code);
+                var programmeCode = distinctCodes[0];
+                processingWindow.LogMessage($"Setting Programme = {programmeCode} and pressing 'Apply New Criteria' (once)...");
+                await _automationService.ApplyPatProgrammeAsync(programmeCode);
 
-                foreach (var student in members)
+                foreach (var student in queue)
                 {
                     if (_cancellationTokenSource.Token.IsCancellationRequested)
                     {
@@ -403,8 +426,6 @@ public partial class PatView : UserControl
                         return;
                     }
                 }
-
-                if (_cancellationTokenSource.Token.IsCancellationRequested) break;
             }
 
             processingWindow.LogMessage("Processing complete.");
@@ -430,7 +451,58 @@ public partial class PatView : UserControl
             var successCount = queue.Count(s => s.Status == ProcessingStatus.Success);
             var failedCount = queue.Count(s => s.Status == ProcessingStatus.Failed);
             UpdateFooterStatus($"Complete: {successCount} allocated, {failedCount} failed");
+
+            try
+            {
+                var csvPath = ExportResultsCsv(queue);
+                if (csvPath != null)
+                {
+                    processingWindow.LogMessage($"Results CSV written to: {csvPath}");
+                    LogStatus($"Results CSV written to: {csvPath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                processingWindow.LogMessage($"Could not write results CSV: {ex.Message}");
+                LogStatus($"Could not write results CSV: {ex.Message}");
+            }
         }
+    }
+
+    // Writes a results CSV to the Desktop: one row per attempted student, six columns.
+    // Completed = Y when the allocation succeeded, N otherwise. Returns the file path (or null).
+    private static string? ExportResultsCsv(List<StudentRecord> queue)
+    {
+        if (queue.Count == 0) return null;
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Student Number,Programme,Surname,PAT Allocated (Staff Name),PAT Number,Completed");
+
+        foreach (var s in queue)
+        {
+            var programme = !string.IsNullOrWhiteSpace(s.Programme) ? s.Programme : s.Route;
+            var completed = s.Status == ProcessingStatus.Success ? "Y" : "N";
+            sb.AppendLine(string.Join(",",
+                CsvField(s.StudentNo),
+                CsvField(programme),
+                CsvField(s.Surname),
+                CsvField(s.PersonalTutorName),
+                CsvField(s.PersonalTutor),
+                CsvField(completed)));
+        }
+
+        var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        var path = Path.Combine(desktop, $"PAT Allocations {DateTime.Now:yyyy-MM-dd HHmm}.csv");
+        File.WriteAllText(path, sb.ToString());
+        return path;
+    }
+
+    private static string CsvField(string? value)
+    {
+        var v = value ?? "";
+        if (v.Contains('"') || v.Contains(',') || v.Contains('\n') || v.Contains('\r'))
+            return "\"" + v.Replace("\"", "\"\"") + "\"";
+        return v;
     }
 
     private void ResetButton_Click(object? sender, RoutedEventArgs e)

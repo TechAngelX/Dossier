@@ -169,6 +169,20 @@ public class ExcelService : IExcelService
         }
 
         int rowCount = worksheet.Dimension?.Rows ?? 0;
+
+        // Detect the Portico programme-code column by value shape (e.g. "TMSCOMSDDI19"),
+        // independent of the (possibly duplicated) "Programme" header.
+        int programmeCodeCol = -1;
+        for (int col = 1; col <= colCount && programmeCodeCol == -1; col++)
+        {
+            for (int probe = headerRow + 1; probe <= Math.Min(rowCount, headerRow + 20); probe++)
+            {
+                var sample = worksheet.Cells[probe, col].Value?.ToString()?.Trim() ?? "";
+                if (LooksLikeProgrammeCode(sample)) { programmeCodeCol = col; break; }
+            }
+        }
+        if (programmeCodeCol > 0) Console.WriteLine($"  Programme CODE column: {programmeCodeCol}");
+
         for (int row = headerRow + 1; row <= rowCount; row++)
         {
             string? studentNo = worksheet.Cells[row, studentNoCol].Value?.ToString()?.Trim();
@@ -210,6 +224,7 @@ public class ExcelService : IExcelService
                 PersonalTutor = personalTutorCol > 0 ? worksheet.Cells[row, personalTutorCol].Value?.ToString()?.Trim() ?? "" : "",
                 PatRequired = patRequiredCol > 0 ? worksheet.Cells[row, patRequiredCol].Value?.ToString()?.Trim() ?? "" : "",
                 Route = routeCol > 0 ? worksheet.Cells[row, routeCol].Value?.ToString()?.Trim() ?? "" : "",
+                ProgrammeCode = programmeCodeCol > 0 ? worksheet.Cells[row, programmeCodeCol].Value?.ToString()?.Trim() ?? "" : "",
             };
 
             if (students.Count < 5)
@@ -350,9 +365,23 @@ public class ExcelService : IExcelService
             if (qualityRankCol == -1 && header.Contains("rank")) qualityRankCol = col;
         }
 
+        // Detect the Portico programme-code column by value shape (e.g. "TMSCOMSDDI19").
+        int programmeCodeCol = -1;
+        for (int col = 0; col < headers.Length && programmeCodeCol == -1; col++)
+        {
+            for (int r = 1; r < Math.Min(lines.Length, 21); r++)
+            {
+                if (string.IsNullOrWhiteSpace(lines[r])) continue;
+                var f = ParseCsvLine(lines[r], delimiter);
+                var sample = col < f.Length ? f[col].Trim() : "";
+                if (LooksLikeProgrammeCode(sample)) { programmeCodeCol = col; break; }
+            }
+        }
+
         Console.WriteLine($"=== Detected Columns ===");
         Console.WriteLine($"  StudentNo column: {studentNoCol}");
         Console.WriteLine($"  Decision column: {decisionCol}");
+        if (programmeCodeCol >= 0) Console.WriteLine($"  Programme CODE column: {programmeCodeCol}");
         if (nameCol >= 0) Console.WriteLine($"  Name column: {nameCol}");
         if (forenameCol >= 0) Console.WriteLine($"  Forename column: {forenameCol}");
         if (surnameCol >= 0) Console.WriteLine($"  Surname column: {surnameCol}");
@@ -415,6 +444,7 @@ public class ExcelService : IExcelService
                 PersonalTutor = personalTutorCol >= 0 && personalTutorCol < fields.Length ? fields[personalTutorCol].Trim() : "",
                 PatRequired = patRequiredCol >= 0 && patRequiredCol < fields.Length ? fields[patRequiredCol].Trim() : "",
                 Route = routeCol >= 0 && routeCol < fields.Length ? fields[routeCol].Trim() : "",
+                ProgrammeCode = programmeCodeCol >= 0 && programmeCodeCol < fields.Length ? fields[programmeCodeCol].Trim() : "",
             };
 
             if (students.Count < 5)
@@ -427,6 +457,19 @@ public class ExcelService : IExcelService
 
         Console.WriteLine($"=== Total loaded: {students.Count} students ===");
         return students;
+    }
+
+    // A Portico programme code looks like "TMSCOMSDDI19" / "TMSDATSMLE01": starts with T,
+    // uppercase letters, ends in digits. Matched on the first whitespace-delimited token so a
+    // trailing tag (e.g. "TMSCOMSDDI19 PG") still counts.
+    private static readonly System.Text.RegularExpressions.Regex ProgrammeCodeRegex =
+        new(@"^T[A-Z]{2,}\d{2,}$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    internal static bool LooksLikeProgrammeCode(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        var token = value.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries)[0].ToUpperInvariant();
+        return token.Length >= 8 && token.Length <= 16 && ProgrammeCodeRegex.IsMatch(token);
     }
 
     private static DateTime? ParseExcelDate(ExcelRange cell)
