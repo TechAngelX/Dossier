@@ -450,7 +450,8 @@ public partial class PatView : UserControl
 
             var successCount = queue.Count(s => s.Status == ProcessingStatus.Success);
             var failedCount = queue.Count(s => s.Status == ProcessingStatus.Failed);
-            UpdateFooterStatus($"Complete: {successCount} allocated, {failedCount} failed");
+            var skippedCount = queue.Count(s => s.Status == ProcessingStatus.Skipped);
+            UpdateFooterStatus($"Complete: {successCount} allocated, {skippedCount} already allocated (skipped), {failedCount} failed");
 
             try
             {
@@ -481,7 +482,8 @@ public partial class PatView : UserControl
         foreach (var s in queue)
         {
             var programme = !string.IsNullOrWhiteSpace(s.Programme) ? s.Programme : s.Route;
-            var completed = s.Status == ProcessingStatus.Success ? "Y" : "N";
+            // Skipped = already allocated in Portico, so still "done" (Y).
+            var completed = (s.Status == ProcessingStatus.Success || s.Status == ProcessingStatus.Skipped) ? "Y" : "N";
             sb.AppendLine(string.Join(",",
                 CsvField(s.StudentNo),
                 CsvField(programme),

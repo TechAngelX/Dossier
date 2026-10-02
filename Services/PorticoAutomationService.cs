@@ -984,7 +984,16 @@ public class PorticoAutomationService : IPorticoAutomationService
             await WaitForResultRowAsync(student.StudentNo);
 
             // 3. Type the tutor code into the row's Personal Tutor box and let it resolve to the name.
-            await AssignTutorInResultRowAsync(student);
+            //    If the row already has a tutor, skip without saving (no overwrite).
+            var assigned = await AssignTutorInResultRowAsync(student);
+            if (!assigned)
+            {
+                student.Status = ProcessingStatus.Skipped;
+                student.ErrorMessage = "Already allocated in Portico — skipped (not overwritten).";
+                LogStatus($"=== SKIPPED {student.StudentNo}: already has a tutor ===");
+                StudentProcessed?.Invoke(this, student);
+                return;
+            }
 
             if (DebugMode)
             {
@@ -1079,11 +1088,10 @@ public class PorticoAutomationService : IPorticoAutomationService
     }
 
     // Types the tutor code into the Personal Tutor box ON THE STUDENT'S ROW and accepts the match.
-    private async Task AssignTutorInResultRowAsync(StudentRecord student)
+    // Returns true if a tutor was entered; false if the row already had one (left untouched).
+    private async Task<bool> AssignTutorInResultRowAsync(StudentRecord student)
     {
-        if (_page == null) return;
-
-        LogStatus($"[PAT] Entering tutor code {student.PersonalTutor} on {student.StudentNo}'s row...");
+        if (_page == null) return false;
 
         // The result row is the <tr> that contains the student number (the filter row does not).
         var row = _page.Locator("tr").Filter(new() { HasText = student.StudentNo });
@@ -1091,27 +1099,140 @@ public class PorticoAutomationService : IPorticoAutomationService
         if (await tutorInput.CountAsync() == 0)
             throw new Exception("Could not find the Personal Tutor box on the student's row.");
 
+        // Skip if the row already has a tutor, so an existing allocation is never overwritten.
+        var existing = (await ReadInputAsync(tutorInput)).Trim();
+        if (!string.IsNullOrWhiteSpace(existing) && existing != "<unreadable>")
+        {
+            student.PersonalTutorName = existing;
+            LogStatus($"[PAT] {student.StudentNo} already has a tutor ('{existing}') — skipping (not overwritten).");
+            return false;
+        }
+
+        LogStatus($"[PAT] Entering tutor code {student.PersonalTutor} on {student.StudentNo}'s row...");
+
         await tutorInput.ScrollIntoViewIfNeededAsync();
         await tutorInput.ClickAsync();
         try { await tutorInput.FillAsync(""); } catch { }
-        await _page.Keyboard.TypeAsync(student.PersonalTutor, new KeyboardTypeOptions { Delay = 60 });
-        await Task.Delay(2000);
+        await _page.Keyboard.TypeAsync(student.PersonalTutor, new KeyboardTypeOptions { Delay = 40 });
 
-        // The code resolves to a staff member (e.g. "David Jones (DWABU05)") — click that suggestion.
-        var picked = await _page.EvaluateAsync<string>(@"(code) => {
+        var code = student.PersonalTutor;
+
+        // Wait responsively for the autocomplete suggestion to render — break as soon as it appears.
+        bool suggestionVisible = false;
+        for (int i = 0; i < 40; i++)   // up to ~6s, 150ms granularity
+        {
+            if (await IsTutorSuggestionOpenAsync(code)) { suggestionVisible = true; break; }
+            await Task.Delay(150);
+        }
+        if (!suggestionVisible)
+            LogStatus("[PAT] WARNING: tutor suggestion did not appear — attempting selection anyway.");
+
+        // Capture the staff name the code resolved to (for the results CSV) before the dropdown closes.
+        var suggestionText = await GetTutorSuggestionTextAsync(code);
+        if (!string.IsNullOrWhiteSpace(suggestionText))
+        {
+            student.PersonalTutorName = ExtractStaffName(suggestionText, code);
+            LogStatus($"[PAT] Resolved tutor: {student.PersonalTutorName}");
+        }
+
+        // Commit the selection by keyboard — a synthetic el.click() on this widget does NOT register
+        // the choice (the hidden staff-id stays empty and Save stalls): highlight first match, Enter.
+        await _page.Keyboard.PressAsync("ArrowDown");
+        await Task.Delay(100);
+        await _page.Keyboard.PressAsync("Enter");
+
+        // Wait responsively for the dropdown to close (= committed). Fall back to real mouse events.
+        if (!await WaitForTutorCommittedAsync(code, 3000))
+        {
+            LogStatus("[PAT] Keyboard select did not commit — trying mouse-event fallback...");
+            var picked = await _page.EvaluateAsync<string>(@"(code) => {
+                const norm = s => (s || '').replace(/\s+/g, ' ').trim();
+                const cl = code.toLowerCase();
+                const els = Array.from(document.querySelectorAll('li, [role=option], .select2-results__option, .dropdown-item, .ui-menu-item, a, span, div'));
+                for (const e of els) {
+                    if (e.offsetParent === null) continue;
+                    const t = norm(e.textContent);
+                    if (!t || t.length > 90) continue;
+                    if (t.toLowerCase().includes(cl)) {
+                        e.scrollIntoView();
+                        const opts = { bubbles: true, cancelable: true, view: window };
+                        e.dispatchEvent(new MouseEvent('mousedown', opts));
+                        e.dispatchEvent(new MouseEvent('mouseup', opts));
+                        e.dispatchEvent(new MouseEvent('click', opts));
+                        return 'CLICKED: ' + t;
+                    }
+                }
+                return 'NO_SUGGESTION';
+            }", code);
+            LogStatus($"[PAT] Tutor suggestion (fallback): {picked}");
+            await WaitForTutorCommittedAsync(code, 2000);
+        }
+
+        if (await IsTutorSuggestionOpenAsync(code))
+            LogStatus($"[PAT] WARNING: tutor '{code}' may not have resolved on {student.StudentNo}'s row — verify before Save.");
+        else
+            LogStatus($"[PAT] Tutor resolved on {student.StudentNo}'s row.");
+
+        return true;
+    }
+
+    // Polls (every 150ms, up to timeoutMs) until the tutor autocomplete dropdown has closed.
+    private async Task<bool> WaitForTutorCommittedAsync(string code, int timeoutMs)
+    {
+        var waited = 0;
+        while (waited < timeoutMs)
+        {
+            if (!await IsTutorSuggestionOpenAsync(code)) return true;
+            await Task.Delay(150);
+            waited += 150;
+        }
+        return !await IsTutorSuggestionOpenAsync(code);
+    }
+
+    // Returns the full text of the autocomplete option for this code (e.g. "DADAM27 Dmitry Adamskiy"),
+    // or "" if no option is currently visible.
+    private async Task<string> GetTutorSuggestionTextAsync(string code)
+    {
+        if (_page == null) return "";
+        return await _page.EvaluateAsync<string>(@"(code) => {
             const norm = s => (s || '').replace(/\s+/g, ' ').trim();
             const cl = code.toLowerCase();
-            const els = Array.from(document.querySelectorAll('li, [role=option], .select2-results__option, .dropdown-item, a, span, div'));
+            const els = Array.from(document.querySelectorAll('li, [role=option], .select2-results__option, .dropdown-item, .ui-menu-item'));
             for (const e of els) {
                 if (e.offsetParent === null) continue;
                 const t = norm(e.textContent);
-                if (!t || t.length > 90) continue;
-                if (t.toLowerCase().includes(cl)) { e.scrollIntoView(); e.click(); return 'CLICKED: ' + t; }
+                if (t && t.length <= 90 && t.toLowerCase().includes(cl)) return t;
             }
-            return 'NO_SUGGESTION';
-        }", student.PersonalTutor);
-        LogStatus($"[PAT] Tutor suggestion: {picked}");
-        await Task.Delay(1000);
+            return '';
+        }", code);
+    }
+
+    // Strips the tutor code (and any leftover separators/brackets) from the suggestion text,
+    // leaving just the staff name. "DADAM27 Dmitry Adamskiy" / "Dmitry Adamskiy (DADAM27)" → "Dmitry Adamskiy".
+    private static string ExtractStaffName(string suggestionText, string code)
+    {
+        var name = System.Text.RegularExpressions.Regex.Replace(
+            suggestionText, System.Text.RegularExpressions.Regex.Escape(code), "",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        name = name.Replace("()", " ");
+        name = System.Text.RegularExpressions.Regex.Replace(name, @"\s+", " ").Trim();
+        return name.Trim('(', ')', '/', '-', '–', ',', ' ');
+    }
+
+    // True while the tutor autocomplete dropdown is still showing an option for this code
+    // (i.e. the selection has NOT yet been committed).
+    private async Task<bool> IsTutorSuggestionOpenAsync(string code)
+    {
+        if (_page == null) return false;
+        return await _page.EvaluateAsync<bool>(@"(code) => {
+            const cl = code.toLowerCase();
+            const els = Array.from(document.querySelectorAll('li, [role=option], .select2-results__option, .dropdown-item, .ui-menu-item'));
+            return els.some(e => {
+                if (e.offsetParent === null) return false;
+                const t = (e.textContent || '').replace(/\s+/g, ' ').trim();
+                return t.length > 0 && t.length <= 90 && t.toLowerCase().includes(cl);
+            });
+        }", code);
     }
 
     private async Task ClickSaveAsync()
@@ -1130,7 +1251,7 @@ public class PorticoAutomationService : IPorticoAutomationService
             throw new Exception("Could not find the 'Save' button.");
 
         await _page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 30000 });
-        await Task.Delay(1200);
+        await Task.Delay(400);
     }
 
     // Waits for the "Personal Tutors Updated" confirmation and clicks OK.
@@ -1139,7 +1260,7 @@ public class PorticoAutomationService : IPorticoAutomationService
         if (_page == null) return;
 
         LogStatus("[PAT] Waiting for 'Personal Tutors Updated' confirmation...");
-        for (int attempt = 0; attempt < 20; attempt++)   // up to ~20s
+        for (int attempt = 0; attempt < 30; attempt++)   // poll every 200ms, up to ~6s
         {
             var clicked = await _page.EvaluateAsync<string>(@"() => {
                 const norm = s => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -1151,10 +1272,10 @@ public class PorticoAutomationService : IPorticoAutomationService
             {
                 LogStatus("[PAT] Confirmation OK clicked.");
                 await _page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 30000 });
-                await Task.Delay(1000);
+                await Task.Delay(400);
                 return;
             }
-            await Task.Delay(1000);
+            await Task.Delay(200);
         }
         LogStatus("[PAT] WARNING: no 'OK' confirmation button appeared — continuing.");
     }
