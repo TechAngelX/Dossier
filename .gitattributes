@@ -1,0 +1,16 @@
+# Normalize all text files to LF in the repository.
+# Working-tree checkout uses LF on every platform.
+* text=auto eol=lf
+
+# Explicit binaries — never touch, never diff as text.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
+*.pdf  binary
+*.xlsx binary
+*.xls  binary
+*.dll  binary
+*.exe  binary
