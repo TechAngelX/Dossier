@@ -11,6 +11,7 @@ public interface IPorticoAutomationService
     
     bool DebugMode { get; set; }
     bool IsInitialised { get; }
+    bool IsBrowserAlive { get; }
 
     // When set (e.g. "2026/27"), each student search first selects that academic year
     // in the Portico "Year" dropdown instead of the default "Current Applications".

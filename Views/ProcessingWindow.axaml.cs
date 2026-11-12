@@ -30,6 +30,27 @@ public partial class ProcessingWindow : Window
         CancelButton.Click += (s, e) => OnCancelRequested();
         CloseButton.Click += (s, e) => Close();
         OutputFailedButton.Click += OnOutputFailedClicked;
+        CopyLogButton.Click += OnCopyLogClicked;
+        ClearLogButton.Click += OnClearLogClicked;
+    }
+
+    private async void OnCopyLogClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var clipboard = Clipboard;
+        if (clipboard is null) return;
+        await clipboard.SetTextAsync(StatusLog.Text ?? string.Empty);
+        if (sender is Button b)
+        {
+            var original = b.Content;
+            b.Content = "Copied";
+            await System.Threading.Tasks.Task.Delay(700);
+            b.Content = original;
+        }
+    }
+
+    private void OnClearLogClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        StatusLog.Text = string.Empty;
     }
     
     public event EventHandler? CancelRequested;

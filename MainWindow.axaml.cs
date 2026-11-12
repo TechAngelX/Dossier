@@ -520,6 +520,13 @@ public partial class MainWindow : Window
                     if (student.Status == ProcessingStatus.Success)
                         AutoRenameStudentPdf(student, downloadPath, processingWindow);
                     RefreshStudentGrid();
+
+                    if (!_automationService.IsBrowserAlive)
+                    {
+                        processingWindow.LogMessage("Browser process exited — stopping batch. Successful downloads so far are kept; re-run to resume (existing PDFs will be skipped).");
+                        processingWindow.UpdateFooterStatus("Browser crashed — batch stopped");
+                        break;
+                    }
                 }
             }
             else
@@ -582,6 +589,13 @@ public partial class MainWindow : Window
                     }
 
                     RefreshStudentGrid();
+
+                    if (!_automationService.IsBrowserAlive)
+                    {
+                        processingWindow.LogMessage("Browser process exited — stopping batch. Re-run to resume.");
+                        processingWindow.UpdateFooterStatus("Browser crashed — batch stopped");
+                        break;
+                    }
                 }
             }
             

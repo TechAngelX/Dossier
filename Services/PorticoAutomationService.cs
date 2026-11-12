@@ -53,7 +53,36 @@ public class PorticoAutomationService : IPorticoAutomationService
 
     public bool IsInitialised => _page != null;
 
-    public async Task InitialiseAsync(AppConfig config)
+    // Flipped to true the first time a catch block sees an exception message
+    // that means the underlying Edge process died. IPage.IsClosed only fires
+    // on explicit close() — an ungraceful crash leaves it reporting alive.
+    private volatile bool _browserDied;
+
+    // True only when the Playwright Page is actually usable. After the Edge
+    // process dies mid-batch, _page stays non-null but every call fails with
+    // "Process exited"; the loop uses this to break out instead of spamming.
+    public bool IsBrowserAlive => _page != null && !_page.IsClosed && !_browserDied;
+
+    // Scans an exception message for the hallmark strings Playwright emits when
+    // the browser process has died. Called from every per-student catch so the
+    // outer loop can bail on the first crash instead of failing every remaining
+    // student with the same error.
+    private void MarkBrowserDeadIfApplicable(Exception ex)
+    {
+        var m = ex.Message ?? "";
+        if (m.Contains("Process exited", StringComparison.OrdinalIgnoreCase)
+         || m.Contains("Target page, context or browser has been closed", StringComparison.OrdinalIgnoreCase)
+         || m.Contains("Target closed", StringComparison.OrdinalIgnoreCase)
+         || m.Contains("Browser has been closed", StringComparison.OrdinalIgnoreCase)
+         || m.Contains("Connection closed", StringComparison.OrdinalIgnoreCase))
+        {
+            _browserDied = true;
+        }
+    }
+
+    public async Task InitialiseAsync(AppConfig config) { _browserDied = false; await InitialiseAsyncImpl(config); }
+
+    private async Task InitialiseAsyncImpl(AppConfig config)
     {
         _config = config;
 
@@ -210,6 +239,7 @@ public class PorticoAutomationService : IPorticoAutomationService
             student.Status = ProcessingStatus.Failed;
             student.ErrorMessage = ex.Message;
             LogStatus($"FAILED {student.StudentNo}: {ex.Message}");
+            MarkBrowserDeadIfApplicable(ex);
         }
         
         StudentProcessed?.Invoke(this, student);
@@ -238,6 +268,7 @@ public class PorticoAutomationService : IPorticoAutomationService
             student.Status = ProcessingStatus.Failed;
             student.ErrorMessage = ex.Message;
             LogStatus($"FAILED {student.StudentNo}: {ex.Message}");
+            MarkBrowserDeadIfApplicable(ex);
         }
         
         StudentProcessed?.Invoke(this, student);
@@ -811,16 +842,22 @@ public class PorticoAutomationService : IPorticoAutomationService
             student.Status = ProcessingStatus.Failed;
             student.ErrorMessage = ex.Message;
             LogStatus($"=== FAILED {student.StudentNo}: {ex.Message} ===");
+            MarkBrowserDeadIfApplicable(ex);
 
-            // RECOVERY: Navigate back to search screen so the next student can be processed
-            try
+            // Skip the recovery attempt once the browser is confirmed dead —
+            // navigating a dead page just logs another crash line.
+            if (!_browserDied)
             {
-                LogStatus("Recovering — navigating back to search...");
-                await NavigateToUclSelectAsync();
-            }
-            catch
-            {
-                LogStatus("Recovery failed — browser may be in an unexpected state.");
+                try
+                {
+                    LogStatus("Recovering — navigating back to search...");
+                    await NavigateToUclSelectAsync();
+                }
+                catch (Exception recoveryEx)
+                {
+                    MarkBrowserDeadIfApplicable(recoveryEx);
+                    LogStatus("Recovery failed — browser may be in an unexpected state.");
+                }
             }
         }
 
@@ -1021,6 +1058,7 @@ public class PorticoAutomationService : IPorticoAutomationService
             student.Status = ProcessingStatus.Failed;
             student.ErrorMessage = ex.Message;
             LogStatus($"=== FAILED {student.StudentNo}: {ex.Message} ===");
+            MarkBrowserDeadIfApplicable(ex);
         }
 
         StudentProcessed?.Invoke(this, student);
