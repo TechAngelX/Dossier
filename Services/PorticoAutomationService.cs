@@ -37,8 +37,8 @@ public class PorticoAutomationService : IPorticoAutomationService
         { "FRM",  "TMSCOMSFRM01" },
         { "FT",   "TMSFINSTEC01" },
         { "EDT",  "TMSCOMSEDT01" },
-        { "ML",   "TMSCOMSMCL01" },
-        { "DSML", "TMSDATSMLE01" },
+        { "ML",   "TMSENG002101" },
+        { "DSML", "TMSENG003001" },
         { "CSML", "TMSCOMSSML01" },
         { "RAI",  "TMSROBAARI01" },
         { "SEIOT","TMSCOMSEIT01" },
@@ -892,6 +892,12 @@ public class PorticoAutomationService : IPorticoAutomationService
             await Task.Delay(1000);
         }
         LogStatus("[PAT] On Personal Tutor Allocations page (All Students).");
+
+        // Best-effort year selection — if this page exposes an Academic Year dropdown,
+        // force the current admissions cycle so each student search targets the right cohort.
+        try { await SelectAcademicYearAsync(Dossier.Utilities.AcademicYearHelper.Current()); }
+        catch (Exception ex) { LogStatus($"[PAT] Year selection skipped: {ex.Message}"); }
+
         return true;
     }
 
@@ -1323,6 +1329,10 @@ public class PorticoAutomationService : IPorticoAutomationService
         await Task.Delay(1000);
         LogStatus("On Report Parameters page.");
 
+        // Required by Portico — without an explicit year the report returns zero rows
+        // when the form default lags behind the current admissions cycle.
+        await SelectAcademicYearAsync(Dossier.Utilities.AcademicYearHelper.Current());
+
         // Clear any existing programme code tag selections
         var removed = await _page.EvaluateAsync<int>(@"() => {
             const btns = document.querySelectorAll('button[title=""Remove""], .sit-remove, [class*=""remove""][class*=""btn""]');
@@ -1345,29 +1355,33 @@ public class PorticoAutomationService : IPorticoAutomationService
         await _page.Keyboard.TypeAsync(searchTerm, new KeyboardTypeOptions { Delay = 90 });
         await Task.Delay(2000);
 
-        // Click the matching suggestion
-        var suggestion = _page.Locator("li").Filter(new() { HasText = fullProgrammeName }).First;
+        // Click the matching suggestion — prefer the LAST match.
+        // Portico often lists the same programme twice (one row per active cycle);
+        // the bottom entry is the current-cycle route we actually want.
+        var suggestion = _page.Locator("li").Filter(new() { HasText = fullProgrammeName }).Last;
         if (!await suggestion.IsVisibleAsync())
-            suggestion = _page.Locator($"[class*='autocomplete'] li, [class*='dropdown'] li, ul li").Filter(new() { HasText = fullProgrammeName[..Math.Min(15, fullProgrammeName.Length)] }).First;
+            suggestion = _page.Locator($"[class*='autocomplete'] li, [class*='dropdown'] li, ul li").Filter(new() { HasText = fullProgrammeName[..Math.Min(15, fullProgrammeName.Length)] }).Last;
 
         if (await suggestion.IsVisibleAsync())
         {
-            LogStatus("Found autocomplete suggestion — clicking.");
+            LogStatus("Found autocomplete suggestion (bottom match) — clicking.");
             await suggestion.ClickAsync();
         }
         else
         {
-            // JS fallback: click a list item containing the programme name
+            // JS fallback: click the LAST list item containing the programme name.
             var jsClicked = await _page.EvaluateAsync<bool>($@"() => {{
-                const items = document.querySelectorAll('li, .autocomplete-option, .dropdown-item');
-                for (const item of items) {{
-                    if (item.textContent && item.textContent.includes('{fullProgrammeName[..Math.Min(10, fullProgrammeName.Length)]}')) {{
+                const items = Array.from(document.querySelectorAll('li, .autocomplete-option, .dropdown-item'));
+                const needle = '{fullProgrammeName[..Math.Min(10, fullProgrammeName.Length)]}';
+                for (let i = items.length - 1; i >= 0; i--) {{
+                    const item = items[i];
+                    if (item.textContent && item.textContent.includes(needle)) {{
                         item.click(); return true;
                     }}
                 }}
                 return false;
             }}");
-            LogStatus(jsClicked ? "Suggestion clicked via JS." : "No suggestion found — pressing Enter.");
+            LogStatus(jsClicked ? "Suggestion clicked via JS (bottom match)." : "No suggestion found — pressing Enter.");
             if (!jsClicked) await progCodeInput.PressAsync("Enter");
         }
 
@@ -1478,6 +1492,11 @@ public class PorticoAutomationService : IPorticoAutomationService
         LogStatus($"[Step 2] {clickInfo}.");
         await _page.WaitForLoadStateAsync(LoadState.NetworkIdle, new PageWaitForLoadStateOptions { Timeout = 30000 });
         await Task.Delay(1500);
+
+        // Best-effort year selection — if the ISO search page has an Academic Year dropdown,
+        // force the current admissions cycle so the student is resolved against the right cohort.
+        try { await SelectAcademicYearAsync(Dossier.Utilities.AcademicYearHelper.Current()); }
+        catch (Exception ex) { LogStatus($"[ISO] Year selection skipped: {ex.Message}"); }
 
         // Step 3: Enter the Student Code and select the AJAX autocomplete match.
         // The form is a SITS "ttq" form — the code box triggers an AJAX lookup whose selection
