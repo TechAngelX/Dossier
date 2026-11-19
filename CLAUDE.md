@@ -101,7 +101,12 @@ b{batch} {Forename} {Surname} {StudentNo} {FeeCode} {Grade}.pdf
 - Handles two formats: original `26049530-01-01-OVERVIEW.PDF` (digits before first dash) and already-renamed `b7 John Smith 26049530 H 2_1.pdf` (longest 7–10 digit space-delimited token).
 
 ### Programme Code Mapping
-Short codes in the spreadsheet (ML, CS, FT, DSML, CSML, etc.) are mapped to Portico programme codes (TMSCOMSMCL01, etc.) inside `PorticoAutomationService.cs`. This mapping is used to click the correct programme row when a student has multiple applications.
+Short codes / full programme names in the spreadsheet (ML, CS, FT, DSML, CSML, etc.) are mapped to Portico programme/route codes (e.g. `TMSENG002401`). This mapping is used to click the correct programme row when a student has multiple applications.
+
+- **Single source of truth:** the repo file **`data/progcodes.csv`** (columns `ProgCode,RouteCode,ProgShort,Prog`). It's committed to git, so one push/pull keeps every colleague's programme codes in sync — no per-machine drift. It's copied next to the executable on build (`<Content Include="data/progcodes.csv">`) and found at runtime beside the exe, then relative to the project root when running from source.
+- **Open for extension, closed for modification:** to change a code (e.g. CSML's Portico code) or add a programme, edit a row in `data/progcodes.csv` and commit — no code change, no rebuild. `Configuration/ProgrammeMapping.cs` loads this file; every tab (ADMerger, PAT, Portico automation) resolves codes through it via `GetPorticoCode()` / `GetCode()`. `PorticoAutomationService` no longer keeps its own copy.
+- **Which column is the Portico code:** `GetPorticoCode()` returns **`ProgCode`** (the code shown in the Portico results row that automation matches on).
+- **Resilience:** the built-in table in `ProgrammeMapping` is only a last-resort fallback. A missing, malformed, or unreadable CSV never breaks the app — it falls back to the built-in table.
 
 ### Browser Automation Patterns
 - **Persistent browser context** is stored at `~/.dossier-auth` so SSO/MFA sessions survive between runs.

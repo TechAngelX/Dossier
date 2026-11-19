@@ -2,6 +2,7 @@
 
 using System.Diagnostics;
 using Microsoft.Playwright;
+using Dossier.Configuration;
 using Dossier.Models;
 
 namespace Dossier.Services;
@@ -26,27 +27,6 @@ public class PorticoAutomationService : IPorticoAutomationService
     // When set (e.g. "2026/27"), SearchForStudentAsync selects that academic year in the
     // Portico "Year" dropdown before searching. Null = default "Current Applications".
     public string? TargetAcademicYear { get; set; } = null;
-
-    private readonly Dictionary<string, string> _shortToLongProgCodes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        { "AIBH", "TMSARTSINT03" },
-        { "AISD", "TMSARTSINT02" },
-        { "AIDE", "TMSCOMSSAD18" },
-        { "ISEC", "TMSCOMSINF01" },
-        { "CF",   "TMSCOMSCFI01" },
-        { "FRM",  "TMSCOMSFRM01" },
-        { "FT",   "TMSFINSTEC01" },
-        { "EDT",  "TMSCOMSEDT01" },
-        { "ML",   "TMSENG002101" },
-        { "DSML", "TMSENG003001" },
-        { "CSML", "TMSCOMSSML01" },
-        { "RAI",  "TMSROBAARI01" },
-        { "SEIOT","TMSCOMSEIT01" },
-        { "DDI",  "TMSCOMSDDI19" },
-        { "CS",   "TMSCOMSING01" },
-        { "SSE",  "TMSCOMSSSE01" },
-        { "CGVI", "TMSCOMSCGV01" }
-    };
 
     public event EventHandler<string>? StatusUpdated;
     public event EventHandler<StudentRecord>? StudentProcessed;
@@ -388,7 +368,11 @@ public class PorticoAutomationService : IPorticoAutomationService
             throw new Exception("Programme column is empty.");
         }
 
-        string searchCode = _shortToLongProgCodes.TryGetValue(inputProg, out var longCode) ? longCode : inputProg;
+        // Map the spreadsheet's Programme value (short code or full name) to the Portico
+        // code via the shared ProgrammeMapping so every tab — and the user-editable
+        // programme-codes.csv — stays consistent. Falls back to the input unchanged
+        // when it's already a Portico code (e.g. "TMSCOMSDDI19") or isn't recognised.
+        string searchCode = ProgrammeMapping.GetPorticoCode(inputProg) ?? inputProg;
         
         if (searchCode != inputProg)
         {
